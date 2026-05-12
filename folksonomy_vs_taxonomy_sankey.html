@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Folksonomy vs Taxonomy — Steam × MobyGames</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3-sankey/0.12.3/d3-sankey.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#f1f5f9;color:#0f172a;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+
+/* ── header ── */
+#top{padding:20px 24px 8px;background:#fff;border-bottom:1px solid #e2e8f0}
+#top h1{font-size:19px;font-weight:700;color:#0f172a;letter-spacing:.1px}
+#top .sub{font-size:11.5px;color:#64748b;margin-top:5px;line-height:1.7;max-width:920px}
+#top .sub b.s{color:#1d4ed8} #top .sub b.m{color:#b45309} #top .sub b.r{color:#dc2626}
+
+/* ── legend ── */
+#legend-row{display:flex;align-items:center;gap:18px;padding:8px 24px;
+            background:#fff;border-bottom:1px solid #e2e8f0;flex-wrap:wrap}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:#475569}
+.leg-sw{width:13px;height:13px;border-radius:3px;flex-shrink:0}
+.hint{font-size:10.5px;color:#94a3b8;margin-left:auto}
+
+/* ── stats ── */
+.stats-row{display:flex;justify-content:center;gap:12px;padding:10px 16px 6px;
+           background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-wrap:wrap}
+.sbox{background:#fff;border:1px solid #e2e8f0;border-radius:8px;
+      padding:8px 16px;text-align:center;min-width:108px;
+      box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.snum{font-size:22px;font-weight:700;line-height:1}
+.slbl{font-size:9.5px;color:#64748b;margin-top:2px;line-height:1.35}
+
+/* ── controls ── */
+#controls{display:flex;justify-content:center;gap:8px;padding:9px 0 5px;
+          background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-wrap:wrap}
+.btn{background:#fff;border:1px solid #cbd5e1;color:#374151;
+     padding:5px 16px;border-radius:6px;cursor:pointer;font-size:12px;
+     transition:all .15s;user-select:none;font-weight:500}
+.btn:hover{background:#f1f5f9;border-color:#94a3b8}
+.btn.active{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+
+/* ── chart ── */
+#chart{background:#fff;overflow-x:auto;border-bottom:1px solid #e2e8f0}
+svg{display:block;margin:0 auto}
+
+/* ── tooltip ── */
+.tip{position:fixed;background:rgba(15,23,42,.95);border:1px solid #334155;
+     border-radius:9px;padding:10px 14px;font-size:12px;line-height:1.75;
+     color:#f1f5f9;pointer-events:none;opacity:0;max-width:260px;z-index:99;
+     box-shadow:0 8px 24px rgba(0,0,0,.25);transition:opacity .1s}
+
+/* ── hover label ── */
+.hlabel{position:fixed;background:rgba(15,23,42,.9);border:1px solid #475569;
+        border-radius:5px;padding:3px 9px;font-size:11px;color:#f1f5f9;
+        pointer-events:none;opacity:0;z-index:98;white-space:nowrap}
+
+/* ── findings ── */
+#findings{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;
+          padding:14px 18px 20px;background:#f8fafc}
+@media(max-width:900px){#findings{grid-template-columns:repeat(2,1fr)}}
+.finding{background:#fff;border:1px solid #e2e8f0;border-radius:10px;
+         padding:14px 15px;box-shadow:0 1px 4px rgba(0,0,0,.06);
+         display:flex;flex-direction:column}
+.finding:hover{border-color:#94a3b8;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.f-num{font-size:20px;font-weight:700;margin-bottom:5px}
+.f-title{font-size:12px;font-weight:700;margin-bottom:5px;color:#0f172a;line-height:1.35}
+.f-body{font-size:10.5px;color:#64748b;line-height:1.65;flex:1}
+.f-body b{color:#334155}
+.f-btn{margin-top:10px;background:#f8fafc;border:1px solid #cbd5e1;color:#374151;
+       padding:4px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:500;
+       transition:all .15s;width:100%;text-align:center}
+.f-btn:hover{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.f-btn.lit{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <h1>Steam × MobyGames — Tag Taxonomy Distribution</h1>
+  <p class="sub">
+    <b class="s">SteamDB = Folksonomy</b>: user-generated crowd tagging, no controlled vocabulary
+    (Mathes, 2004; Trant, 2009).&ensp;
+    <b class="m">MobyGames = Taxonomy</b>: expert-curated hierarchical classification
+    (Bates, 2002; Mai, 2011).<br>
+    Flows show tag counts · Platform → Original Categories → Shared Semantic Clusters ·
+    <b class="r">Steam-Only Vocabulary</b> = tags with no MobyGames equivalent.
+  </p>
+</div>
+
+<div id="legend-row">
+  <div class="leg"><div class="leg-sw" style="background:#3b82f6"></div>SteamDB categories</div>
+  <div class="leg"><div class="leg-sw" style="background:#d97706"></div>MobyGames categories</div>
+  <div class="leg"><div class="leg-sw" style="background:#6366f1;border:1px solid #a5b4fc"></div>Shared semantic clusters</div>
+  <div class="leg"><div class="leg-sw" style="background:#dc2626"></div>Steam-Only Vocabulary</div>
+  <span class="hint">click node to highlight · hover for counts · drag vertically</span>
+</div>
+
+<div class="stats-row" id="stats"></div>
+
+<div id="controls">
+  <button class="btn active" id="btn-all"  >All Flows</button>
+  <button class="btn"        id="btn-steam">Steam Paths</button>
+  <button class="btn"        id="btn-mg"   >MobyGames Paths</button>
+  <button class="btn"        id="btn-reset">Reset</button>
+</div>
+
+<div id="chart"></div>
+<div class="tip"    id="tip"></div>
+<div class="hlabel" id="hlabel"></div>
+
+<div id="findings">
+  <div class="finding">
+    <div class="f-num" style="color:#d97706">①</div>
+    <div class="f-title">Taxonomy owns technical structure</div>
+    <div class="f-body">The only cluster where MobyGames dominates is <b>Camera, Controls &amp; Perspective</b> (71% MobyGames). Taxonomy excels at classifying technical apparatus — 1st-person, isometric, behind view. <b>Every other cluster is 75–99% Steam.</b></div>
+    <button class="f-btn" id="f1-btn" onclick="highlightFinding('Camera, Controls & Perspective','f1-btn')">↗ Highlight cluster</button>
+  </div>
+  <div class="finding">
+    <div class="f-num" style="color:#dc2626">②</div>
+    <div class="f-title">88% of Steam tags have no MobyGames match</div>
+    <div class="f-body">396 of 450 Steam tags — <b>Cozy, Wholesome, Boomer Shooter, Roguelite</b> — exist nowhere in MobyGames. Communities coin language for experiences taxonomy never anticipated.</div>
+    <button class="f-btn" id="f2-btn" onclick="highlightFinding('Steam-Only Vocabulary','f2-btn')">↗ Highlight cluster</button>
+  </div>
+  <div class="finding">
+    <div class="f-num" style="color:#8b5cf6">③</div>
+    <div class="f-title">Affective tagging is folksonomy-exclusive</div>
+    <div class="f-body"><b>Tone &amp; Mood</b> is 99% Steam, 1% MobyGames. <b>Funny, Dark, Cute, Relaxing, Emotional</b> classify how a game <em>feels</em>. Taxonomy says <em>what</em> something is; folksonomy says <em>what it's like</em>.</div>
+    <button class="f-btn" id="f3-btn" onclick="highlightFinding('Tone & Mood','f3-btn')">↗ Highlight cluster</button>
+  </div>
+  <div class="finding">
+    <div class="f-num" style="color:#ef4444">④</div>
+    <div class="f-title">Adult &amp; Horror: absent by institutional choice</div>
+    <div class="f-body"><b>Adult &amp; Mature Content</b> (88% Steam) and <b>Horror</b> (91% Steam) are nearly invisible in MobyGames. This mirrors library collection policy: institutional taxonomies reflect what curators <em>choose</em> to make discoverable — and what they deliberately exclude (Svenonius, 2000).</div>
+    <button class="f-btn" id="f4-btn" onclick="highlightFinding('Adult & Mature Content','f4-btn')">↗ Highlight cluster</button>
+  </div>
+</div>
+
+<script>
+const RAW  = {"edges": [{"source": "SteamDB", "target": "[S] Themes & Moods", "value": 788662}, {"source": "[S] Themes & Moods", "target": "Steam-Only Vocabulary", "value": 619774}, {"source": "[S] Themes & Moods", "target": "Fantasy & Mythology", "value": 36765}, {"source": "[S] Themes & Moods", "target": "Horror & Dark Atmosphere", "value": 23664}, {"source": "[S] Themes & Moods", "target": "Survival & Crafting", "value": 15812}, {"source": "[S] Themes & Moods", "target": "Tone & Mood", "value": 15469}, {"source": "[S] Themes & Moods", "target": "Historical & Military", "value": 22968}, {"source": "[S] Themes & Moods", "target": "Extreme & Outdoor Sports", "value": 14475}, {"source": "[S] Themes & Moods", "target": "Adult & Mature Content", "value": 10099}, {"source": "[S] Themes & Moods", "target": "Sci-Fi & Technology", "value": 8584}, {"source": "[S] Themes & Moods", "target": "Mystery, Thriller & Crime", "value": 14961}, {"source": "SteamDB", "target": "[S] Top-Level Genres", "value": 642987}, {"source": "[S] Top-Level Genres", "target": "Steam-Only Vocabulary", "value": 376741}, {"source": "[S] Top-Level Genres", "target": "Core Action Combat", "value": 107685}, {"source": "[S] Top-Level Genres", "target": "Adventure & Exploration", "value": 95556}, {"source": "[S] Top-Level Genres", "target": "Simulation & Management", "value": 63005}, {"source": "SteamDB", "target": "[S] Visuals & Viewpoint", "value": 861110}, {"source": "[S] Visuals & Viewpoint", "target": "Steam-Only Vocabulary", "value": 854987}, {"source": "[S] Visuals & Viewpoint", "target": "Camera, Controls & Perspective", "value": 6123}, {"source": "SteamDB", "target": "[S] Genres", "value": 356022}, {"source": "[S] Genres", "target": "Puzzle & Logic", "value": 36754}, {"source": "[S] Genres", "target": "Multiplayer & Social", "value": 26126}, {"source": "[S] Genres", "target": "Shooter Mechanics", "value": 21705}, {"source": "[S] Genres", "target": "Steam-Only Vocabulary", "value": 241901}, {"source": "[S] Genres", "target": "Roguelikes & Procedural", "value": 15427}, {"source": "[S] Genres", "target": "RPG & Character Progression", "value": 12541}, {"source": "SteamDB", "target": "[S] Sub-Genres", "value": 267763}, {"source": "[S] Sub-Genres", "target": "Steam-Only Vocabulary", "value": 254950}, {"source": "[S] Sub-Genres", "target": "RPG & Character Progression", "value": 4155}, {"source": "SteamDB", "target": "[S] Miscellaneous", "value": 253675}, {"source": "[S] Miscellaneous", "target": "Steam-Only Vocabulary", "value": 252759}, {"source": "SteamDB", "target": "[S] Players", "value": 211837}, {"source": "[S] Players", "target": "Steam-Only Vocabulary", "value": 203728}, {"source": "[S] Players", "target": "Multiplayer & Social", "value": 8109}, {"source": "SteamDB", "target": "[S] Adult Content", "value": 69517}, {"source": "[S] Adult Content", "target": "Steam-Only Vocabulary", "value": 69517}, {"source": "SteamDB", "target": "[S] Violence", "value": 28036}, {"source": "[S] Violence", "target": "Steam-Only Vocabulary", "value": 28036}, {"source": "SteamDB", "target": "[S] Audio", "value": 24082}, {"source": "[S] Audio", "target": "Steam-Only Vocabulary", "value": 20889}, {"source": "MobyGames", "target": "[MG] Basic Genres", "value": 227915}, {"source": "[MG] Basic Genres", "target": "Core Action Combat", "value": 61054}, {"source": "[MG] Basic Genres", "target": "Game Features & Metadata", "value": 60124}, {"source": "[MG] Basic Genres", "target": "Adventure & Exploration", "value": 22994}, {"source": "[MG] Basic Genres", "target": "Science & Education", "value": 5643}, {"source": "[MG] Basic Genres", "target": "Puzzle & Logic", "value": 19263}, {"source": "[MG] Basic Genres", "target": "Extreme & Outdoor Sports", "value": 15423}, {"source": "[MG] Basic Genres", "target": "RPG & Character Progression", "value": 10199}, {"source": "[MG] Basic Genres", "target": "Simulation & Management", "value": 15226}, {"source": "[MG] Basic Genres", "target": "Strategy & Tactics", "value": 16635}, {"source": "MobyGames", "target": "[MG] Perspective", "value": 139923}, {"source": "[MG] Perspective", "target": "Camera, Controls & Perspective", "value": 135233}, {"source": "[MG] Perspective", "target": "Visual Novel & Interactive Narrative", "value": 4469}, {"source": "MobyGames", "target": "[MG] Visual Presentation", "value": 74745}, {"source": "[MG] Visual Presentation", "target": "Adventure & Exploration", "value": 24501}, {"source": "[MG] Visual Presentation", "target": "Camera, Controls & Perspective", "value": 49397}, {"source": "MobyGames", "target": "[MG] Pacing", "value": 26408}, {"source": "[MG] Pacing", "target": "Strategy & Tactics", "value": 24018}, {"source": "MobyGames", "target": "[MG] Gameplay", "value": 145880}, {"source": "[MG] Gameplay", "target": "Strategy & Tactics", "value": 16813}, {"source": "[MG] Gameplay", "target": "RPG & Character Progression", "value": 7709}, {"source": "[MG] Gameplay", "target": "Multiplayer & Social", "value": 24516}, {"source": "[MG] Gameplay", "target": "Shooter Mechanics", "value": 19861}, {"source": "[MG] Gameplay", "target": "Core Action Combat", "value": 4745}, {"source": "[MG] Gameplay", "target": "Card & Board Games", "value": 10980}, {"source": "[MG] Gameplay", "target": "Simulation & Management", "value": 8435}, {"source": "[MG] Gameplay", "target": "Visual Novel & Interactive Narrative", "value": 12374}, {"source": "[MG] Gameplay", "target": "Puzzle & Logic", "value": 12026}, {"source": "[MG] Gameplay", "target": "Adventure & Exploration", "value": 5441}, {"source": "[MG] Gameplay", "target": "Platformer & Movement", "value": 14633}, {"source": "MobyGames", "target": "[MG] Add-on", "value": 62148}, {"source": "[MG] Add-on", "target": "Game Features & Metadata", "value": 44195}, {"source": "[MG] Add-on", "target": "Camera, Controls & Perspective", "value": 10081}, {"source": "[MG] Add-on", "target": "Visual Novel & Interactive Narrative", "value": 6021}, {"source": "MobyGames", "target": "[MG] Narrative Theme/Topic", "value": 33610}, {"source": "[MG] Narrative Theme/Topic", "target": "Adult & Mature Content", "value": 15039}, {"source": "[MG] Narrative Theme/Topic", "target": "Mystery, Thriller & Crime", "value": 5825}, {"source": "[MG] Narrative Theme/Topic", "target": "Horror & Dark Atmosphere", "value": 5272}, {"source": "MobyGames", "target": "[MG] Setting", "value": 79752}, {"source": "[MG] Setting", "target": "Historical & Military", "value": 23998}, {"source": "[MG] Setting", "target": "Sci-Fi & Technology", "value": 24368}, {"source": "[MG] Setting", "target": "Fantasy & Mythology", "value": 31386}, {"source": "MobyGames", "target": "[MG] Vehicular Themes", "value": 20397}, {"source": "[MG] Vehicular Themes", "target": "Vehicles & Aviation", "value": 11959}, {"source": "MobyGames", "target": "[MG] Interface/Control", "value": 89230}, {"source": "[MG] Interface/Control", "target": "Camera, Controls & Perspective", "value": 51058}, {"source": "[MG] Interface/Control", "target": "Game Features & Metadata", "value": 11276}, {"source": "[MG] Interface/Control", "target": "Adventure & Exploration", "value": 23768}], "meta": {"steam_total_tags": 450, "mg_total_tags": 230, "shared_tags": 54, "steam_only_tags": 396, "mg_only_tags": 176}, "node_order": ["SteamDB", "MobyGames", "[S] Visuals & Viewpoint", "[S] Themes & Moods", "[S] Top-Level Genres", "[S] Genres", "[S] Sub-Genres", "[S] Miscellaneous", "[S] Players", "[S] Adult Content", "[S] Violence", "[S] Audio", "[MG] Basic Genres", "[MG] Perspective", "[MG] Gameplay", "[MG] Interface/Control", "[MG] Setting", "[MG] Visual Presentation", "[MG] Add-on", "[MG] Narrative Theme/Topic", "[MG] Pacing", "[MG] Vehicular Themes", "Camera, Controls & Perspective", "Core Action Combat", "Adventure & Exploration", "Game Features & Metadata", "Simulation & Management", "Fantasy & Mythology", "Puzzle & Logic", "Multiplayer & Social", "Strategy & Tactics", "Historical & Military", "Shooter Mechanics", "RPG & Character Progression", "Sci-Fi & Technology", "Extreme & Outdoor Sports", "Horror & Dark Atmosphere", "Adult & Mature Content", "Visual Novel & Interactive Narrative", "Mystery, Thriller & Crime", "Survival & Crafting", "Tone & Mood", "Roguelikes & Procedural", "Platformer & Movement", "Vehicles & Aviation", "Card & Board Games", "Science & Education", "Steam-Only Vocabulary"]};
+const META = RAW.meta;
+const fmt  = d3.format(",.0f");
+
+// ── stats ─────────────────────────────────────────────────────────────────────
+[
+  {num:META.steam_total_tags, lbl:"SteamDB Tags<br>(Folksonomy)",      col:"#1d4ed8"},
+  {num:META.mg_total_tags,    lbl:"MobyGames Tags<br>(Taxonomy)",       col:"#b45309"},
+  {num:META.shared_tags,      lbl:"Tags on Both<br>Platforms",          col:"#059669"},
+  {num:META.steam_only_tags,  lbl:"Steam-Only Tags<br>(No MG Equiv.)",  col:"#dc2626"},
+  {num:META.mg_only_tags,     lbl:"MobyGames-Only<br>(No Steam Equiv.)",col:"#7c3aed"},
+].forEach(s=>{
+  document.getElementById("stats").innerHTML+=
+    `<div class="sbox"><div class="snum" style="color:${s.col}">${s.num}</div>
+     <div class="slbl">${s.lbl}</div></div>`;
+});
+
+// ── colours ───────────────────────────────────────────────────────────────────
+const PALETTE=[
+  "#6366f1","#0891b2","#059669","#ea580c","#dc2626",
+  "#db2777","#65a30d","#0d9488","#7c3aed","#c2410c",
+  "#0284c7","#16a34a","#e11d48","#ca8a04","#2563eb",
+  "#10b981","#f43f5e","#84cc16","#14b8a6","#9333ea",
+  "#f97316","#22d3ee","#4ade80","#fb7185","#a3e635",
+  "#60a5fa","#34d399","#fbbf24","#c084fc","#f9a8d4",
+];
+const clusterNames=[...new Set(RAW.edges
+  .filter(e=>!["SteamDB","MobyGames","Steam-Only Vocabulary"].includes(e.target)&&!e.target.startsWith("["))
+  .map(e=>e.target))].sort();
+const clColor=Object.fromEntries(clusterNames.map((c,i)=>[c,PALETTE[i%PALETTE.length]]));
+
+function nodeColor(id){
+  if(id==="SteamDB")               return "#1e40af";
+  if(id.startsWith("[S]"))         return "#3b82f6";
+  if(id==="MobyGames")             return "#92400e";
+  if(id.startsWith("[MG]"))        return "#d97706";
+  if(id==="Steam-Only Vocabulary") return "#dc2626";
+  return clColor[id]||"#6366f1";
+}
+function nodeStroke(id){
+  if(clusterNames.includes(id)) return d3.color(nodeColor(id)).darker(.5).formatHex();
+  return "none";
+}
+function linkStroke(l){
+  return (l.source.id==="SteamDB"||l.source.id.startsWith("[S]"))?"#3b82f6":"#d97706";
+}
+
+// ── sankey ────────────────────────────────────────────────────────────────────
+const W=Math.min(window.innerWidth-10,1360), H=960;
+const svg=d3.select("#chart").append("svg").attr("width",W).attr("height",H);
+
+const nodeOrder=RAW.node_order||[];
+const nodeMap=new Map(nodeOrder.map((id,i)=>[id,i]));
+
+const sankey=d3.sankey()
+  .nodeId(d=>d.id).nodeWidth(22).nodePadding(5)
+  .extent([[16,24],[W-16,H-16]])
+  .nodeAlign(d3.sankeyLeft)
+  .nodeSort((a,b)=>(nodeMap.get(a.id)??999)-(nodeMap.get(b.id)??999));
+
+const nodeSet=new Map();
+nodeOrder.forEach(id=>nodeSet.set(id,{id}));
+RAW.edges.forEach(e=>{
+  if(!nodeSet.has(e.source))nodeSet.set(e.source,{id:e.source});
+  if(!nodeSet.has(e.target))nodeSet.set(e.target,{id:e.target});
+});
+
+const graph=sankey({
+  nodes:[...nodeSet.values()],
+  links:RAW.edges.map(e=>({source:e.source,target:e.target,value:Math.max(e.value,1)}))
+});
+
+// ── links ─────────────────────────────────────────────────────────────────────
+const lG=svg.append("g").attr("fill","none");
+const lP=lG.selectAll("path").data(graph.links).join("path")
+  .attr("d",d3.sankeyLinkHorizontal())
+  .attr("stroke",d=>linkStroke(d))
+  .attr("stroke-width",d=>Math.max(1,d.width))
+  .attr("stroke-opacity",.22)
+  .attr("data-src",d=>d.source.id)
+  .attr("data-tgt",d=>d.target.id)
+  .on("mouseover",function(e,d){
+    d3.select(this).attr("stroke-opacity",.75);
+    showTip(e,`<b>${d.source.id}</b><br><span style='color:#94a3b8'>↓</span><br><b>${d.target.id}</b><br><br>Count: <b>${fmt(d.value)}</b>`);
+  })
+  .on("mousemove",moveTip)
+  .on("mouseout",function(){d3.select(this).attr("stroke-opacity",.22);hideTip();});
+
+// ── nodes ─────────────────────────────────────────────────────────────────────
+const LABEL_MIN=15;
+const nG=svg.append("g");
+const nGs=nG.selectAll("g").data(graph.nodes).join("g")
+  .call(d3.drag()
+    .subject(d=>d)
+    .on("start",function(){this.parentNode.appendChild(this);})
+    .on("drag",function(ev,d){
+      d.y0+=ev.dy;d.y1+=ev.dy;
+      d3.select(this).select("rect").attr("y",d.y0);
+      d3.select(this).select("text").attr("y",(d.y0+d.y1)/2);
+      sankey.update(graph);lP.attr("d",d3.sankeyLinkHorizontal());
+    })
+  );
+
+nGs.append("rect")
+  .attr("x",d=>d.x0).attr("y",d=>d.y0)
+  .attr("width",d=>d.x1-d.x0).attr("height",d=>Math.max(1,d.y1-d.y0))
+  .attr("fill",d=>nodeColor(d.id)).attr("rx",3)
+  .attr("stroke",d=>nodeStroke(d.id)).attr("stroke-width",1)
+  .on("mouseover",function(ev,d){
+    highlightNode(d.id);
+    showTip(ev,`<b>${d.id}</b><br>Total flow: <b>${fmt(d.value)}</b>`
+      +(d.id==="Steam-Only Vocabulary"?`<br><span style='color:#fca5a5'>396 Steam tags with no MobyGames equivalent</span>`:""));
+    if(d.y1-d.y0<LABEL_MIN){
+      const hl=document.getElementById("hlabel");
+      hl.textContent=d.id;hl.style.opacity=1;
+      hl.style.left=(ev.clientX+28)+"px";hl.style.top=(ev.clientY-8)+"px";
+    }
+  })
+  .on("mousemove",function(ev,d){
+    moveTip(ev);
+    const hl=document.getElementById("hlabel");
+    if(hl.style.opacity=="1"){hl.style.left=(ev.clientX+28)+"px";hl.style.top=(ev.clientY-8)+"px";}
+  })
+  .on("mouseout",function(){
+    hideTip();document.getElementById("hlabel").style.opacity=0;
+    if(activeMode==="all")resetOpacity();else applyMode(activeMode,false);
+    resetFBtns();
+  });
+
+nGs.append("text")
+  .attr("x",d=>d.x0<W/2?d.x1+6:d.x0-6)
+  .attr("y",d=>(d.y0+d.y1)/2).attr("dy","0.35em")
+  .attr("text-anchor",d=>d.x0<W/2?"start":"end")
+  .attr("fill",d=>["SteamDB","MobyGames"].includes(d.id)?"#fff":"#0f172a")
+  .attr("font-size",d=>{const h=d.y1-d.y0;return h>=LABEL_MIN?"10.5px":"0px";})
+  .attr("font-weight",d=>["SteamDB","MobyGames"].includes(d.id)?"700":"400")
+  .text(d=>d.id);
+
+// ── tooltip ───────────────────────────────────────────────────────────────────
+const tip=document.getElementById("tip");
+function showTip(e,html){tip.innerHTML=html;tip.style.opacity=1;moveTip(e);}
+function moveTip(e){
+  let x=e.clientX+14,y=e.clientY-10;
+  if(x+270>window.innerWidth)x=e.clientX-278;
+  if(y+150>window.innerHeight)y=e.clientY-160;
+  tip.style.left=x+"px";tip.style.top=y+"px";
+}
+function hideTip(){tip.style.opacity=0;}
+
+// ── highlight ─────────────────────────────────────────────────────────────────
+let activeMode="all";
+
+function resetOpacity(){
+  lP.attr("stroke-opacity",.22);
+  nGs.select("rect").attr("opacity",1).style("filter","none");
+  nGs.select("text").attr("opacity",1);
+}
+
+function applyMode(mode,updateBtns=true){
+  activeMode=mode;
+  if(updateBtns){
+    document.querySelectorAll(".btn").forEach(b=>b.classList.remove("active"));
+    const el=document.getElementById("btn-"+mode);if(el)el.classList.add("active");
+  }
+  if(mode==="all"||mode==="reset"){activeMode="all";document.getElementById("btn-all").classList.add("active");resetOpacity();return;}
+  const sm=mode==="steam";
+  const ok=src=>sm?(src==="SteamDB"||src.startsWith("[S]")):(src==="MobyGames"||src.startsWith("[MG]"));
+  lP.attr("stroke-opacity",function(){return ok(d3.select(this).attr("data-src"))?.62:.03;});
+  nGs.select("rect").attr("opacity",function(d){
+    const lnk=graph.links.some(l=>ok(l.source.id)&&(l.source.id===d.id||l.target.id===d.id));
+    return lnk||(sm&&d.id==="SteamDB")||(!sm&&d.id==="MobyGames")?1:.08;
+  });
+  nGs.select("text").attr("opacity",function(d){
+    const lnk=graph.links.some(l=>ok(l.source.id)&&(l.source.id===d.id||l.target.id===d.id));
+    return lnk||(sm&&d.id==="SteamDB")||(!sm&&d.id==="MobyGames")?1:.1;
+  });
+}
+
+function highlightNode(nodeId){
+  const conn=new Set([nodeId]);
+  graph.links.forEach(l=>{if(l.source.id===nodeId)conn.add(l.target.id);if(l.target.id===nodeId)conn.add(l.source.id);});
+  lP.attr("stroke-opacity",function(){
+    return conn.has(d3.select(this).attr("data-src"))&&conn.has(d3.select(this).attr("data-tgt"))?.82:.03;
+  });
+  nGs.select("rect")
+    .attr("opacity",d=>conn.has(d.id)?1:.06)
+    .style("filter",d=>conn.has(d.id)?"drop-shadow(0 0 6px rgba(0,0,0,.25))":"none");
+  nGs.select("text").attr("opacity",d=>conn.has(d.id)?1:.06);
+}
+
+// ── finding buttons ───────────────────────────────────────────────────────────
+let activeFinding=null;
+function resetFBtns(){
+  document.querySelectorAll(".f-btn").forEach(b=>{b.classList.remove("lit");
+    if(b.textContent.startsWith("✓"))b.textContent="↗ Highlight cluster";});
+}
+function highlightFinding(nodeId,btnId){
+  if(activeFinding===nodeId){activeFinding=null;resetOpacity();resetFBtns();return;}
+  activeFinding=nodeId;resetFBtns();
+  highlightNode(nodeId);
+  const btn=document.getElementById(btnId);
+  btn.classList.add("lit");btn.textContent="✓ Highlighted — click to clear";
+  document.getElementById("chart").scrollIntoView({behavior:"smooth",block:"center"});
+}
+
+document.getElementById("btn-all").addEventListener("click",  ()=>{resetFBtns();applyMode("all");});
+document.getElementById("btn-steam").addEventListener("click",()=>{resetFBtns();applyMode("steam");});
+document.getElementById("btn-mg").addEventListener("click",   ()=>{resetFBtns();applyMode("mg");});
+document.getElementById("btn-reset").addEventListener("click",()=>{resetFBtns();applyMode("all");});
+</script>
+</body>
+</html>

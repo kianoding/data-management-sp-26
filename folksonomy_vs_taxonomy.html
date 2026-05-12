@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Folksonomy vs Taxonomy — Center-Out Distribution</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',system-ui,sans-serif;overflow-x:hidden}
+#header{text-align:center;padding:20px 20px 6px}
+#header h1{font-size:20px;letter-spacing:.4px;color:#e6edf3}
+#header p.sub{font-size:11.5px;color:#8b949e;margin-top:5px;max-width:760px;margin-left:auto;margin-right:auto;line-height:1.6}
+.banner{display:flex;justify-content:center;gap:40px;padding:12px 0 8px;flex-wrap:wrap}
+.banner-box{text-align:center;background:#161b22;border:1px solid #30363d;border-radius:10px;padding:10px 24px}
+.banner-box .num{font-size:28px;font-weight:700;letter-spacing:-1px}
+.banner-box .lbl{font-size:11px;color:#8b949e;margin-top:2px}
+.steam-col .num{color:#3b82f6}
+.mg-col    .num{color:#f59e0b}
+.shared-col .num{color:#10b981}
+.only-col   .num{color:#f87171}
+#controls{display:flex;justify-content:center;gap:10px;padding:6px 0 10px;flex-wrap:wrap}
+.btn{background:#161b22;border:1px solid #30363d;color:#e6edf3;
+     padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;transition:background .15s}
+.btn:hover{background:#21262d}
+.btn.active{background:#1f6feb;border-color:#1f6feb}
+#viz{width:100%;position:relative}
+svg{display:block;margin:0 auto}
+.node-rect{cursor:pointer;transition:opacity .2s}
+.link{fill:none;stroke-opacity:.35;transition:stroke-opacity .2s}
+.link:hover{stroke-opacity:.75;cursor:pointer}
+.node-label{font-size:10.5px;fill:#e6edf3;pointer-events:none}
+.cluster-label{font-size:10px;fill:#e6edf3;text-anchor:middle;pointer-events:none}
+.axis-label{font-size:12px;font-weight:600;fill:#8b949e;text-anchor:middle}
+.section-head{font-size:11px;fill:#6b7280;text-anchor:middle}
+.tip{position:fixed;background:#161b22;border:1px solid #30363d;border-radius:8px;
+     padding:10px 14px;font-size:12px;color:#e6edf3;pointer-events:none;
+     opacity:0;max-width:280px;line-height:1.7;z-index:99;transition:opacity .1s}
+#legend-clusters{display:flex;flex-wrap:wrap;justify-content:center;
+                  gap:5px 12px;padding:8px 20px 14px;max-width:1100px;margin:0 auto}
+.lc-item{display:flex;align-items:center;gap:5px;font-size:10.5px;cursor:pointer}
+.lc-sw{width:11px;height:11px;border-radius:2px;flex-shrink:0}
+#steam-only-panel{background:#161b22;border:1px solid #f87171;border-radius:10px;
+                   margin:10px auto 20px;max-width:900px;padding:14px 18px}
+#steam-only-panel h3{font-size:13px;color:#f87171;margin-bottom:8px}
+.so-grid{display:flex;flex-wrap:wrap;gap:6px}
+.so-tag{background:#1f1010;border:1px solid #7f1d1d;border-radius:4px;
+        padding:2px 8px;font-size:10.5px;color:#fca5a5}
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>Folksonomy vs. Taxonomy — Comparative Tag Distribution</h1>
+  <p class="sub">
+    <b style="color:#3b82f6">SteamDB</b> represents a <b>folksonomy</b>: user-generated, crowd-sourced tagging with no controlled vocabulary
+    (Trant, 2009; Mathes, 2004). &nbsp;|&nbsp;
+    <b style="color:#f59e0b">MobyGames</b> represents a <b>taxonomy</b>: expert-curated, hierarchical genre classification
+    (Bates, 2002; Mai, 2011).
+  </p>
+</div>
+
+<div class="banner" id="banner"></div>
+
+<div id="controls">
+  <button class="btn active" id="btn-all"   onclick="setMode('all')">Show All</button>
+  <button class="btn"        id="btn-steam" onclick="setMode('steam')">Steam Paths</button>
+  <button class="btn"        id="btn-mg"    onclick="setMode('mg')">MobyGames Paths</button>
+  <button class="btn"        id="btn-so"    onclick="setMode('steamonly')">Steam-Only Tags ▼</button>
+</div>
+
+<div id="viz"></div>
+<div class="tip" id="tip"></div>
+<div id="legend-clusters"></div>
+<div id="steam-only-panel" style="display:none">
+  <h3>&#9888; 396 Steam-Only Tags — no MobyGames equivalent</h3>
+  <p style="font-size:11px;color:#8b949e;margin-bottom:8px">These are terms invented by Steam's user community that fall outside MobyGames' controlled vocabulary — evidence of folksonomy's capacity to capture cultural, experiential, and emergent gaming concepts.</p>
+  <div class="so-grid" id="so-grid"></div>
+</div>
+
+<script>
+const DATA = {"meta": {"steam_total_tags": 450, "mg_total_tags": 230, "shared_tags": 54, "steam_only_tags": 396, "mg_only_tags": 176}, "clusters": [{"name": "Game Features & Metadata", "steam": 620869, "mg": 144802, "total": 765671, "steam_pct": 81}, {"name": "Camera, Controls & Perspective", "steam": 98926, "mg": 246429, "total": 345355, "steam_pct": 29}, {"name": "Tone & Mood", "steam": 319544, "mg": 4518, "total": 324062, "steam_pct": 99}, {"name": "Adventure & Exploration", "steam": 234650, "mg": 76704, "total": 311354, "steam_pct": 75}, {"name": "Visual Style & Aesthetics", "steam": 247417, "mg": 19399, "total": 266816, "steam_pct": 93}, {"name": "Platformer & Movement", "steam": 214437, "mg": 14633, "total": 229070, "steam_pct": 94}, {"name": "Core Action Combat", "steam": 160098, "mg": 66593, "total": 226691, "steam_pct": 71}, {"name": "Strategy & Tactics", "steam": 135624, "mg": 57466, "total": 193090, "steam_pct": 70}, {"name": "Simulation & Management", "steam": 168947, "mg": 23809, "total": 192756, "steam_pct": 88}, {"name": "RPG & Character Progression", "steam": 138828, "mg": 18868, "total": 157696, "steam_pct": 88}, {"name": "Visual Novel & Interactive Narrative", "steam": 123272, "mg": 26791, "total": 150063, "steam_pct": 82}, {"name": "Multiplayer & Social", "steam": 123816, "mg": 24516, "total": 148332, "steam_pct": 83}, {"name": "Shooter Mechanics", "steam": 121426, "mg": 19861, "total": 141287, "steam_pct": 86}, {"name": "Adult & Mature Content", "steam": 113379, "mg": 15039, "total": 128418, "steam_pct": 88}, {"name": "Fantasy & Mythology", "steam": 79580, "mg": 31386, "total": 110966, "steam_pct": 72}, {"name": "Sci-Fi & Technology", "steam": 75787, "mg": 27839, "total": 103626, "steam_pct": 73}, {"name": "Puzzle & Logic", "steam": 64038, "mg": 32861, "total": 96899, "steam_pct": 66}, {"name": "Narrative & Story Quality", "steam": 88984, "mg": 311, "total": 89295, "steam_pct": 100}, {"name": "Historical & Military", "steam": 59534, "mg": 28268, "total": 87802, "steam_pct": 68}, {"name": "Horror & Dark Atmosphere", "steam": 71598, "mg": 6880, "total": 78478, "steam_pct": 91}, {"name": "Roguelikes & Procedural", "steam": 53913, "mg": 1747, "total": 55660, "steam_pct": 97}, {"name": "Mystery, Thriller & Crime", "steam": 46967, "mg": 7100, "total": 54067, "steam_pct": 87}, {"name": "Card & Board Games", "steam": 37234, "mg": 12334, "total": 49568, "steam_pct": 75}, {"name": "Extreme & Outdoor Sports", "steam": 26266, "mg": 20780, "total": 47046, "steam_pct": 56}, {"name": "Survival & Crafting", "steam": 36141, "mg": 1147, "total": 37288, "steam_pct": 97}, {"name": "Nature & Creatures", "steam": 32244, "mg": 536, "total": 32780, "steam_pct": 98}, {"name": "Music & Audio", "steam": 28866, "mg": 3258, "total": 32124, "steam_pct": 90}, {"name": "Vehicles & Aviation", "steam": 17938, "mg": 12066, "total": 30004, "steam_pct": 60}, {"name": "Science & Education", "steam": 8782, "mg": 5789, "total": 14571, "steam_pct": 60}, {"name": "Ball & Racket Sports", "steam": 4021, "mg": 8677, "total": 12698, "steam_pct": 32}], "steam_cats": [{"name": "[S] Visuals & Viewpoint", "original": "Visuals & Viewpoint", "total": 861110}, {"name": "[S] Themes & Moods", "original": "Themes & Moods", "total": 788662}, {"name": "[S] Top-Level Genres", "original": "Top-Level Genres", "total": 642987}, {"name": "[S] Genres", "original": "Genres", "total": 356022}, {"name": "[S] Sub-Genres", "original": "Sub-Genres", "total": 267763}, {"name": "[S] Miscellaneous", "original": "Miscellaneous", "total": 253675}, {"name": "[S] Players", "original": "Players", "total": 211837}, {"name": "[S] Adult Content", "original": "Adult Content", "total": 69517}, {"name": "[S] Violence", "original": "Violence", "total": 28036}, {"name": "[S] Audio", "original": "Audio", "total": 24082}, {"name": "[S] Time", "original": "Time", "total": 16682}, {"name": "[S] Challenge", "original": "Challenge", "total": 13481}], "mg_cats": [{"name": "[MG] Basic Genres", "original": "Basic Genres", "total": 227915}, {"name": "[MG] Gameplay", "original": "Gameplay", "total": 145880}, {"name": "[MG] Perspective", "original": "Perspective", "total": 139923}, {"name": "[MG] Interface/Control", "original": "Interface/Control", "total": 89230}, {"name": "[MG] Setting", "original": "Setting", "total": 79752}, {"name": "[MG] Visual Presentation", "original": "Visual Presentation", "total": 74745}, {"name": "[MG] Add-on", "original": "Add-on", "total": 62148}, {"name": "[MG] Narrative Theme/Topic", "original": "Narrative Theme/Topic", "total": 33610}, {"name": "[MG] Pacing", "original": "Pacing", "total": 26408}, {"name": "[MG] Vehicular Themes", "original": "Vehicular Themes", "total": 20397}, {"name": "[MG] Art Style", "original": "Art Style", "total": 20111}, {"name": "[MG] Other Attributes", "original": "Other Attributes", "total": 17881}], "steam_flows": [{"cat": "[S] Visuals & Viewpoint", "cluster": "Platformer & Movement", "value": 134435}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Visual Style & Aesthetics", "value": 210087}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Tone & Mood", "value": 35796}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Camera, Controls & Perspective", "value": 98651}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Game Features & Metadata", "value": 50650}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Visual Novel & Interactive Narrative", "value": 74441}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Multiplayer & Social", "value": 6115}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Narrative & Story Quality", "value": 57331}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Core Action Combat", "value": 33451}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Shooter Mechanics", "value": 40560}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Adventure & Exploration", "value": 20907}, {"cat": "[S] Visuals & Viewpoint", "cluster": "RPG & Character Progression", "value": 21656}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Simulation & Management", "value": 20343}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Strategy & Tactics", "value": 23702}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Roguelikes & Procedural", "value": 9576}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Card & Board Games", "value": 14047}, {"cat": "[S] Visuals & Viewpoint", "cluster": "Survival & Crafting", "value": 4361}, {"cat": "[S] Themes & Moods", "cluster": "Tone & Mood", "value": 176883}, {"cat": "[S] Themes & Moods", "cluster": "Fantasy & Mythology", "value": 79404}, {"cat": "[S] Themes & Moods", "cluster": "Horror & Dark Atmosphere", "value": 71325}, {"cat": "[S] Themes & Moods", "cluster": "Sci-Fi & Technology", "value": 74298}, {"cat": "[S] Themes & Moods", "cluster": "Visual Style & Aesthetics", "value": 35757}, {"cat": "[S] Themes & Moods", "cluster": "Mystery, Thriller & Crime", "value": 46572}, {"cat": "[S] Themes & Moods", "cluster": "Survival & Crafting", "value": 15812}, {"cat": "[S] Themes & Moods", "cluster": "Simulation & Management", "value": 53804}, {"cat": "[S] Themes & Moods", "cluster": "Historical & Military", "value": 58802}, {"cat": "[S] Themes & Moods", "cluster": "Extreme & Outdoor Sports", "value": 26266}, {"cat": "[S] Themes & Moods", "cluster": "Strategy & Tactics", "value": 12045}, {"cat": "[S] Themes & Moods", "cluster": "Narrative & Story Quality", "value": 29170}, {"cat": "[S] Themes & Moods", "cluster": "Adult & Mature Content", "value": 15826}, {"cat": "[S] Themes & Moods", "cluster": "Puzzle & Logic", "value": 9929}, {"cat": "[S] Themes & Moods", "cluster": "Nature & Creatures", "value": 32244}, {"cat": "[S] Themes & Moods", "cluster": "Science & Education", "value": 7540}, {"cat": "[S] Themes & Moods", "cluster": "Vehicles & Aviation", "value": 14165}, {"cat": "[S] Themes & Moods", "cluster": "RPG & Character Progression", "value": 4253}, {"cat": "[S] Themes & Moods", "cluster": "Platformer & Movement", "value": 3245}, {"cat": "[S] Themes & Moods", "cluster": "Game Features & Metadata", "value": 5974}, {"cat": "[S] Themes & Moods", "cluster": "Core Action Combat", "value": 7157}, {"cat": "[S] Themes & Moods", "cluster": "Ball & Racket Sports", "value": 3973}, {"cat": "[S] Top-Level Genres", "cluster": "Game Features & Metadata", "value": 134574}, {"cat": "[S] Top-Level Genres", "cluster": "Core Action Combat", "value": 107685}, {"cat": "[S] Top-Level Genres", "cluster": "Tone & Mood", "value": 100500}, {"cat": "[S] Top-Level Genres", "cluster": "Adventure & Exploration", "value": 122885}, {"cat": "[S] Top-Level Genres", "cluster": "Simulation & Management", "value": 63005}, {"cat": "[S] Top-Level Genres", "cluster": "Strategy & Tactics", "value": 57186}, {"cat": "[S] Top-Level Genres", "cluster": "RPG & Character Progression", "value": 57152}, {"cat": "[S] Genres", "cluster": "Puzzle & Logic", "value": 39947}, {"cat": "[S] Genres", "cluster": "Multiplayer & Social", "value": 31372}, {"cat": "[S] Genres", "cluster": "Shooter Mechanics", "value": 23508}, {"cat": "[S] Genres", "cluster": "Platformer & Movement", "value": 18753}, {"cat": "[S] Genres", "cluster": "Visual Novel & Interactive Narrative", "value": 36868}, {"cat": "[S] Genres", "cluster": "Roguelikes & Procedural", "value": 26537}, {"cat": "[S] Genres", "cluster": "Adventure & Exploration", "value": 46684}, {"cat": "[S] Genres", "cluster": "RPG & Character Progression", "value": 34347}, {"cat": "[S] Genres", "cluster": "Strategy & Tactics", "value": 26930}, {"cat": "[S] Genres", "cluster": "Card & Board Games", "value": 13049}, {"cat": "[S] Genres", "cluster": "Simulation & Management", "value": 24833}, {"cat": "[S] Genres", "cluster": "Game Features & Metadata", "value": 18219}, {"cat": "[S] Genres", "cluster": "Core Action Combat", "value": 9129}, {"cat": "[S] Genres", "cluster": "Music & Audio", "value": 4147}, {"cat": "[S] Sub-Genres", "cluster": "Adventure & Exploration", "value": 44174}, {"cat": "[S] Sub-Genres", "cluster": "Platformer & Movement", "value": 58004}, {"cat": "[S] Sub-Genres", "cluster": "Roguelikes & Procedural", "value": 17671}, {"cat": "[S] Sub-Genres", "cluster": "Shooter Mechanics", "value": 56872}, {"cat": "[S] Sub-Genres", "cluster": "Visual Novel & Interactive Narrative", "value": 10184}, {"cat": "[S] Sub-Genres", "cluster": "Puzzle & Logic", "value": 14162}, {"cat": "[S] Sub-Genres", "cluster": "Game Features & Metadata", "value": 14617}, {"cat": "[S] Sub-Genres", "cluster": "RPG & Character Progression", "value": 20706}, {"cat": "[S] Sub-Genres", "cluster": "Simulation & Management", "value": 6962}, {"cat": "[S] Sub-Genres", "cluster": "Strategy & Tactics", "value": 8640}, {"cat": "[S] Sub-Genres", "cluster": "Card & Board Games", "value": 7649}, {"cat": "[S] Sub-Genres", "cluster": "Survival & Crafting", "value": 3522}, {"cat": "[S] Miscellaneous", "cluster": "Game Features & Metadata", "value": 250402}, {"cat": "[S] Players", "cluster": "Game Features & Metadata", "value": 129649}, {"cat": "[S] Players", "cluster": "Multiplayer & Social", "value": 82188}, {"cat": "[S] Adult Content", "cluster": "Adult & Mature Content", "value": 69517}, {"cat": "[S] Violence", "cluster": "Adult & Mature Content", "value": 28036}, {"cat": "[S] Audio", "cluster": "Music & Audio", "value": 24082}, {"cat": "[S] Time", "cluster": "Strategy & Tactics", "value": 7121}, {"cat": "[S] Time", "cluster": "Game Features & Metadata", "value": 6211}, {"cat": "[S] Time", "cluster": "Tone & Mood", "value": 3350}, {"cat": "[S] Challenge", "cluster": "Survival & Crafting", "value": 11142}], "mg_flows": [{"cat": "[MG] Basic Genres", "cluster": "Core Action Combat", "value": 61054}, {"cat": "[MG] Basic Genres", "cluster": "Game Features & Metadata", "value": 60124}, {"cat": "[MG] Basic Genres", "cluster": "Adventure & Exploration", "value": 22994}, {"cat": "[MG] Basic Genres", "cluster": "Science & Education", "value": 5643}, {"cat": "[MG] Basic Genres", "cluster": "Puzzle & Logic", "value": 19263}, {"cat": "[MG] Basic Genres", "cluster": "Extreme & Outdoor Sports", "value": 15423}, {"cat": "[MG] Basic Genres", "cluster": "RPG & Character Progression", "value": 10199}, {"cat": "[MG] Basic Genres", "cluster": "Simulation & Management", "value": 15226}, {"cat": "[MG] Basic Genres", "cluster": "Strategy & Tactics", "value": 16635}, {"cat": "[MG] Gameplay", "cluster": "Strategy & Tactics", "value": 16813}, {"cat": "[MG] Gameplay", "cluster": "RPG & Character Progression", "value": 7709}, {"cat": "[MG] Gameplay", "cluster": "Multiplayer & Social", "value": 24516}, {"cat": "[MG] Gameplay", "cluster": "Shooter Mechanics", "value": 19861}, {"cat": "[MG] Gameplay", "cluster": "Core Action Combat", "value": 4745}, {"cat": "[MG] Gameplay", "cluster": "Card & Board Games", "value": 10980}, {"cat": "[MG] Gameplay", "cluster": "Simulation & Management", "value": 8435}, {"cat": "[MG] Gameplay", "cluster": "Visual Novel & Interactive Narrative", "value": 12374}, {"cat": "[MG] Gameplay", "cluster": "Puzzle & Logic", "value": 12026}, {"cat": "[MG] Gameplay", "cluster": "Adventure & Exploration", "value": 5441}, {"cat": "[MG] Gameplay", "cluster": "Platformer & Movement", "value": 14633}, {"cat": "[MG] Perspective", "cluster": "Camera, Controls & Perspective", "value": 135233}, {"cat": "[MG] Perspective", "cluster": "Visual Novel & Interactive Narrative", "value": 4469}, {"cat": "[MG] Interface/Control", "cluster": "Camera, Controls & Perspective", "value": 51058}, {"cat": "[MG] Interface/Control", "cluster": "Game Features & Metadata", "value": 11276}, {"cat": "[MG] Interface/Control", "cluster": "Adventure & Exploration", "value": 23768}, {"cat": "[MG] Interface/Control", "cluster": "Visual Novel & Interactive Narrative", "value": 3128}, {"cat": "[MG] Setting", "cluster": "Historical & Military", "value": 23998}, {"cat": "[MG] Setting", "cluster": "Sci-Fi & Technology", "value": 24368}, {"cat": "[MG] Setting", "cluster": "Fantasy & Mythology", "value": 31386}, {"cat": "[MG] Visual Presentation", "cluster": "Adventure & Exploration", "value": 24501}, {"cat": "[MG] Visual Presentation", "cluster": "Camera, Controls & Perspective", "value": 49397}, {"cat": "[MG] Add-on", "cluster": "Game Features & Metadata", "value": 44195}, {"cat": "[MG] Add-on", "cluster": "Camera, Controls & Perspective", "value": 10081}, {"cat": "[MG] Add-on", "cluster": "Visual Novel & Interactive Narrative", "value": 6021}, {"cat": "[MG] Narrative Theme/Topic", "cluster": "Adult & Mature Content", "value": 15039}, {"cat": "[MG] Narrative Theme/Topic", "cluster": "Tone & Mood", "value": 3172}, {"cat": "[MG] Narrative Theme/Topic", "cluster": "Mystery, Thriller & Crime", "value": 5825}, {"cat": "[MG] Narrative Theme/Topic", "cluster": "Horror & Dark Atmosphere", "value": 5272}, {"cat": "[MG] Narrative Theme/Topic", "cluster": "Historical & Military", "value": 2150}, {"cat": "[MG] Pacing", "cluster": "Strategy & Tactics", "value": 24018}, {"cat": "[MG] Vehicular Themes", "cluster": "Vehicles & Aviation", "value": 11959}, {"cat": "[MG] Vehicular Themes", "cluster": "Extreme & Outdoor Sports", "value": 3428}, {"cat": "[MG] Vehicular Themes", "cluster": "Sci-Fi & Technology", "value": 3471}, {"cat": "[MG] Art Style", "cluster": "Visual Style & Aesthetics", "value": 18552}, {"cat": "[MG] Other Attributes", "cluster": "Game Features & Metadata", "value": 17881}], "steam_only_clusters": [{"cluster": "Game Features & Metadata", "tag_count": 51, "total_count": 618842, "top_tags": ["Profile Features Limited", "Indie", "Singleplayer", "Demo Available"]}, {"cluster": "Tone & Mood", "tag_count": 24, "total_count": 304075, "top_tags": ["Casual", "Atmospheric", "Cute", "Relaxing"]}, {"cluster": "Visual Style & Aesthetics", "tag_count": 17, "total_count": 247417, "top_tags": ["Colorful", "Pixel Graphics", "Anime", "Stylized"]}, {"cluster": "Platformer & Movement", "tag_count": 12, "total_count": 210902, "top_tags": ["2D", "3D", "Platformer", "2D Platformer"]}, {"cluster": "Adventure & Exploration", "tag_count": 9, "total_count": 139094, "top_tags": ["Exploration", "Action-Adventure", "Open World", "Sandbox"]}, {"cluster": "Strategy & Tactics", "tag_count": 17, "total_count": 130620, "top_tags": ["Strategy", "Tactical", "Turn-Based Strategy", "Turn-Based Tactics"]}, {"cluster": "Visual Novel & Interactive Narrative", "tag_count": 14, "total_count": 123272, "top_tags": ["Choices Matter", "Visual Novel", "Linear", "Multiple Endings"]}, {"cluster": "RPG & Character Progression", "tag_count": 14, "total_count": 122132, "top_tags": ["RPG", "Character Customization", "Dungeon Crawler", "JRPG"]}, {"cluster": "Simulation & Management", "tag_count": 26, "total_count": 105942, "top_tags": ["Management", "Building", "Resource Management", "Crafting"]}, {"cluster": "Adult & Mature Content", "tag_count": 10, "total_count": 103280, "top_tags": ["Sexual Content", "Nudity", "Violent", "Adult Content"]}, {"cluster": "Shooter Mechanics", "tag_count": 20, "total_count": 99721, "top_tags": ["PvE", "PvP", "FPS", "Bullet Hell"]}, {"cluster": "Camera, Controls & Perspective", "tag_count": 7, "total_count": 92803, "top_tags": ["First-Person", "Third Person", "Top-Down", "Physics"]}, {"cluster": "Narrative & Story Quality", "tag_count": 15, "total_count": 88984, "top_tags": ["Story Rich", "Female Protagonist", "Drama", "Lore-Rich"]}, {"cluster": "Multiplayer & Social", "tag_count": 15, "total_count": 88665, "top_tags": ["Multiplayer", "Co-op", "Online Co-Op", "Local Multiplayer"]}, {"cluster": "Sci-Fi & Technology", "tag_count": 14, "total_count": 67203, "top_tags": ["Sci-fi", "Space", "Futuristic", "Cyberpunk"]}, {"cluster": "Core Action Combat", "tag_count": 12, "total_count": 52413, "top_tags": ["Combat", "Hack and Slash", "Beat 'em up", "2D Fighter"]}, {"cluster": "Horror & Dark Atmosphere", "tag_count": 7, "total_count": 47934, "top_tags": ["Dark", "Psychological Horror", "Survival Horror", "Noir"]}, {"cluster": "Fantasy & Mythology", "tag_count": 14, "total_count": 42815, "top_tags": ["Magic", "Dark Fantasy", "Supernatural", "Demons"]}, {"cluster": "Roguelikes & Procedural", "tag_count": 7, "total_count": 38486, "top_tags": ["Roguelite", "Action Roguelike", "Procedural Generation", "Roguelike Deckbuilder"]}, {"cluster": "Historical & Military", "tag_count": 10, "total_count": 36566, "top_tags": ["1990's", "1980s", "Historical", "Military"]}, {"cluster": "Card & Board Games", "tag_count": 10, "total_count": 35012, "top_tags": ["Tabletop", "Card Game", "Deckbuilding", "Board Game"]}, {"cluster": "Nature & Creatures", "tag_count": 14, "total_count": 32244, "top_tags": ["Nature", "Zombies", "Aliens", "Cats"]}, {"cluster": "Mystery, Thriller & Crime", "tag_count": 7, "total_count": 32006, "top_tags": ["Mystery", "Investigation", "Detective", "Conspiracy"]}, {"cluster": "Puzzle & Logic", "tag_count": 8, "total_count": 27284, "top_tags": ["Logic", "Hidden Object", "Word Game", "3\u20e3Match 3"]}, {"cluster": "Music & Audio", "tag_count": 11, "total_count": 25673, "top_tags": ["Soundtrack", "Great Soundtrack", "Rhythm", "Audio Production"]}, {"cluster": "Survival & Crafting", "tag_count": 5, "total_count": 20329, "top_tags": ["Difficult", "Perma Death", "Souls-like", "Open World Survival Craft"]}, {"cluster": "Vehicles & Aviation", "tag_count": 11, "total_count": 17938, "top_tags": ["Driving", "Flight", "Vehicular Combat", "Combat Racing"]}, {"cluster": "Extreme & Outdoor Sports", "tag_count": 10, "total_count": 11791, "top_tags": ["Racing", "Offroad", "Bikes", "Skating"]}, {"cluster": "Science & Education", "tag_count": 1, "total_count": 7540, "top_tags": ["Education"]}, {"cluster": "Ball & Racket Sports", "tag_count": 4, "total_count": 1232, "top_tags": ["Football (Soccer)", "Mini Golf", "Pool", "Snooker"]}]};
+const fmt  = d3.format(",.0f");
+const fmtK = v => v >= 1e6 ? (v/1e6).toFixed(1)+"M" : v >= 1e3 ? (v/1e3).toFixed(0)+"K" : v;
+
+// ── banner ────────────────────────────────────────────────────────────────────
+const bannerDefs = [
+  {cls:"steam-col", num: DATA.meta.steam_total_tags, lbl:"SteamDB Tags\n(Folksonomy)"},
+  {cls:"mg-col",    num: DATA.meta.mg_total_tags,    lbl:"MobyGames Tags\n(Taxonomy)"},
+  {cls:"shared-col",num: DATA.meta.shared_tags,      lbl:"Shared Tags\n(Both Platforms)"},
+  {cls:"only-col",  num: DATA.meta.steam_only_tags,  lbl:"Steam-Only Tags\n(Not in MobyGames)"},
+];
+const banner = document.getElementById("banner");
+bannerDefs.forEach(d => {
+  const box = document.createElement("div");
+  box.className = "banner-box " + d.cls;
+  box.innerHTML = `<div class="num">${d.num}</div><div class="lbl">${d.lbl.replace("\n","<br>")}</div>`;
+  banner.appendChild(box);
+});
+
+// ── colours ───────────────────────────────────────────────────────────────────
+const CLUSTER_PALETTE = [
+  "#8b5cf6","#06b6d4","#10b981","#f97316","#ef4444",
+  "#ec4899","#84cc16","#14b8a6","#a78bfa","#fb923c",
+  "#38bdf8","#4ade80","#f472b6","#facc15","#60a5fa",
+  "#34d399","#fb7185","#a3e635","#2dd4bf","#c084fc",
+  "#fdba74","#67e8f9","#86efac","#fda4af","#bef264",
+  "#93c5fd","#6ee7b7","#fcd34d","#d8b4fe","#f9a8d4",
+];
+const clusterColor = {};
+DATA.clusters.forEach((c,i) => clusterColor[c.name] = CLUSTER_PALETTE[i % CLUSTER_PALETTE.length]);
+
+// ── layout constants ──────────────────────────────────────────────────────────
+const W = Math.min(window.innerWidth, 1300);
+const H = 820;
+const PAD = {top:40, bot:20, left:10, right:10};
+const COL = {
+  steamCat:  {x0: PAD.left,       x1: PAD.left+160},
+  clusterL:  {x:  PAD.left+200},   // left edge of cluster column
+  clusterR:  {x:  W-PAD.right-200},// right edge of cluster column
+  mgCat:     {x0: W-PAD.right-160, x1: W-PAD.right},
+};
+const CL_W = COL.clusterR.x - COL.clusterL.x;
+const CL_MID = COL.clusterL.x + CL_W/2;
+const usableH = H - PAD.top - PAD.bot;
+
+// ── scale utilities ───────────────────────────────────────────────────────────
+function layoutNodes(items, totalKey, height, topY) {
+  const total  = d3.sum(items, d => d[totalKey]);
+  const gap    = 4;
+  const totalGap = gap * (items.length - 1);
+  const scale  = (height - totalGap) / total;
+  let y = topY;
+  items.forEach(d => {
+    d._h = Math.max(2, d[totalKey] * scale);
+    d._y = y;
+    y += d._h + gap;
+  });
+}
+
+// ── SVG ───────────────────────────────────────────────────────────────────────
+const svg = d3.select("#viz").append("svg").attr("width",W).attr("height",H);
+
+// axis labels
+svg.append("text").attr("class","axis-label")
+  .attr("x", COL.steamCat.x0 + 80).attr("y", PAD.top - 20)
+  .text("SteamDB · Folksonomy");
+svg.append("text").attr("class","axis-label")
+  .attr("x", CL_MID).attr("y", PAD.top - 20)
+  .text("← Semantic Clusters →");
+svg.append("text").attr("class","axis-label")
+  .attr("x", COL.mgCat.x0 + 80).attr("y", PAD.top - 20)
+  .text("MobyGames · Taxonomy");
+
+// ── position nodes ────────────────────────────────────────────────────────────
+// Steam categories (left)
+const steamCats = DATA.steam_cats;
+layoutNodes(steamCats, "total", usableH, PAD.top);
+
+// MobyGames categories (right)
+const mgCats = DATA.mg_cats;
+layoutNodes(mgCats, "total", usableH, PAD.top);
+
+// Clusters (middle) — stacked, split steam/mg bar
+const clusters = DATA.clusters;
+layoutNodes(clusters, "total", usableH, PAD.top);
+
+// index maps
+const steamCatIdx = {}; steamCats.forEach(d => steamCatIdx[d.name] = d);
+const mgCatIdx    = {}; mgCats.forEach(d   => mgCatIdx[d.name]    = d);
+const clIdx       = {}; clusters.forEach(d  => clIdx[d.name]       = d);
+
+// ── links ─────────────────────────────────────────────────────────────────────
+function linkPath(x1,y1m,x2,y2m,w1,w2) {
+  // cubic bezier between midpoints, with source/target band
+  const mx = (x1+x2)/2;
+  return `M ${x1} ${y1m-w1/2}
+          C ${mx} ${y1m-w1/2}, ${mx} ${y2m-w2/2}, ${x2} ${y2m-w2/2}
+          L ${x2} ${y2m+w2/2}
+          C ${mx} ${y2m+w2/2}, ${mx} ${y1m+w1/2}, ${x1} ${y1m+w1/2} Z`;
+}
+
+// Pre-compute link offsets so stacked links don't overlap
+const steamFlowOffset = {}; // cluster → current y offset within cluster
+const mgFlowOffset    = {};
+clusters.forEach(c => {
+  steamFlowOffset[c.name] = 0;
+  mgFlowOffset[c.name]    = 0;
+});
+const catSteamOffset = {}; steamCats.forEach(c => catSteamOffset[c.name] = 0);
+const catMgOffset    = {}; mgCats.forEach(c    => catMgOffset[c.name]    = 0);
+
+// Cluster total scales for flow width within cluster bar
+const clusterSteamTotal = {}; const clusterMgTotal = {};
+DATA.steam_flows.forEach(f => { clusterSteamTotal[f.cluster] = (clusterSteamTotal[f.cluster]||0)+f.value; });
+DATA.mg_flows.forEach(f    => { clusterMgTotal[f.cluster]    = (clusterMgTotal[f.cluster]   ||0)+f.value; });
+
+const linkG = svg.append("g").attr("class","links");
+
+// ── Steam → Cluster links ────────────────────────────────────────────────────
+DATA.steam_flows.forEach(f => {
+  const cat = steamCatIdx[f.cat];
+  const cl  = clIdx[f.cluster];
+  if (!cat || !cl) return;
+
+  const catTotal    = cat.total;
+  const clSteamTot  = clusterSteamTotal[f.cluster] || 1;
+  const wCat  = cat._h * (f.value / catTotal);
+  const wCl   = cl._h  * (cl.steam / cl.total) * (f.value / clSteamTot);
+
+  const yCat  = cat._y + catSteamOffset[f.cat] + wCat/2;
+  const yCl   = cl._y  + steamFlowOffset[f.cluster] + wCl/2;
+
+  catSteamOffset[f.cat]       += wCat;
+  steamFlowOffset[f.cluster]  += wCl;
+
+  linkG.append("path")
+    .attr("class","link steam-link")
+    .attr("data-cluster", f.cluster)
+    .attr("data-cat", f.cat)
+    .attr("d", linkPath(COL.steamCat.x1, yCat, COL.clusterL.x, yCl, wCat, wCl))
+    .attr("fill","#3b82f6").attr("fill-opacity",.32)
+    .on("mouseover",(e,d)=>{
+      showTip(e,`<b>${f.cat}</b> → <b>${f.cluster}</b><br>Count: ${fmt(f.value)}`);
+      d3.select(e.currentTarget).attr("fill-opacity",.7);
+    })
+    .on("mousemove", moveTip).on("mouseout",(e)=>{hideTip();d3.select(e.currentTarget).attr("fill-opacity",.32);});
+});
+
+// ── MobyGames → Cluster links (from right) ───────────────────────────────────
+DATA.mg_flows.forEach(f => {
+  const cat = mgCatIdx[f.cat];
+  const cl  = clIdx[f.cluster];
+  if (!cat || !cl) return;
+
+  const catTotal  = cat.total;
+  const clMgTot   = clusterMgTotal[f.cluster] || 1;
+  const wCat  = cat._h * (f.value / catTotal);
+  const wCl   = cl._h  * (cl.mg / (cl.total||1)) * (f.value / clMgTot);
+  const effWCl = Math.max(1, wCl);
+
+  const yCat  = cat._y + catMgOffset[f.cat] + wCat/2;
+  const yCl   = cl._y + cl._h*(cl.steam/(cl.total||1)) + mgFlowOffset[f.cluster] + effWCl/2;
+
+  catMgOffset[f.cat]        += wCat;
+  mgFlowOffset[f.cluster]   += effWCl;
+
+  linkG.append("path")
+    .attr("class","link mg-link")
+    .attr("data-cluster", f.cluster)
+    .attr("data-cat", f.cat)
+    .attr("d", linkPath(COL.clusterR.x, yCl, COL.mgCat.x0, yCat, effWCl, wCat))
+    .attr("fill","#f59e0b").attr("fill-opacity",.32)
+    .on("mouseover",(e)=>{
+      showTip(e,`<b>${f.cluster}</b> → <b>${f.cat}</b><br>Count: ${fmt(f.value)}`);
+      d3.select(e.currentTarget).attr("fill-opacity",.7);
+    })
+    .on("mousemove", moveTip).on("mouseout",(e)=>{hideTip();d3.select(e.currentTarget).attr("fill-opacity",.32);});
+});
+
+// ── Steam category rects (left) ───────────────────────────────────────────────
+const steamG = svg.append("g");
+steamG.selectAll("rect").data(steamCats).join("rect")
+  .attr("class","node-rect")
+  .attr("x", COL.steamCat.x0).attr("y", d=>d._y)
+  .attr("width", COL.steamCat.x1-COL.steamCat.x0).attr("height", d=>Math.max(2,d._h))
+  .attr("fill","#1d4ed8").attr("rx",3)
+  .on("mouseover",(e,d)=>{ showTip(e,`<b>${d.name}</b><br>Total count: ${fmt(d.total)}`); highlightCat(d.name,"steam"); })
+  .on("mousemove",moveTip).on("mouseout",(e,d)=>{hideTip(); resetHighlight();});
+
+steamG.selectAll("text").data(steamCats).join("text")
+  .attr("class","node-label")
+  .attr("x", COL.steamCat.x0-5).attr("y", d=>d._y+d._h/2)
+  .attr("dy","0.35em").attr("text-anchor","end")
+  .attr("font-size", d=> d._h>14?"10.5px":d._h>8?"9px":"0px")
+  .text(d=>d.original);
+
+// ── MobyGames category rects (right) ─────────────────────────────────────────
+const mgG = svg.append("g");
+mgG.selectAll("rect").data(mgCats).join("rect")
+  .attr("class","node-rect")
+  .attr("x", COL.mgCat.x0).attr("y", d=>d._y)
+  .attr("width", COL.mgCat.x1-COL.mgCat.x0).attr("height", d=>Math.max(2,d._h))
+  .attr("fill","#b45309").attr("rx",3)
+  .on("mouseover",(e,d)=>{ showTip(e,`<b>${d.name}</b><br>Total count: ${fmt(d.total)}`); highlightCat(d.name,"mg"); })
+  .on("mousemove",moveTip).on("mouseout",(e,d)=>{hideTip(); resetHighlight();});
+
+mgG.selectAll("text").data(mgCats).join("text")
+  .attr("class","node-label")
+  .attr("x", COL.mgCat.x1+5).attr("y", d=>d._y+d._h/2)
+  .attr("dy","0.35em").attr("text-anchor","start")
+  .attr("font-size", d=> d._h>14?"10.5px":d._h>8?"9px":"0px")
+  .text(d=>d.original);
+
+// ── Cluster rects (middle) — split bar: left=steam, right=mg ─────────────────
+const clG = svg.append("g");
+clusters.forEach(c => {
+  const steamW = CL_W * (c.steam/(c.total||1));
+  const mgW    = CL_W - steamW;
+  const y=c._y, h=Math.max(2,c._h);
+
+  clG.append("rect")
+    .attr("class","node-rect").attr("data-cluster",c.name)
+    .attr("x",COL.clusterL.x).attr("y",y)
+    .attr("width",Math.max(1,steamW)).attr("height",h)
+    .attr("fill","#3b82f6").attr("rx",2)
+    .on("mouseover",(e)=>{
+      showTip(e,`<b>${c.name}</b><br>Steam: ${fmt(c.steam)} (${c.steam_pct}%)<br>MobyGames: ${fmt(c.mg)} (${100-c.steam_pct}%)<br>Combined: ${fmt(c.total)}`);
+      highlightCluster(c.name);
+    })
+    .on("mousemove",moveTip).on("mouseout",(e)=>{hideTip();resetHighlight();});
+
+  if (mgW>1) clG.append("rect")
+    .attr("class","node-rect").attr("data-cluster",c.name)
+    .attr("x",COL.clusterL.x+steamW).attr("y",y)
+    .attr("width",Math.max(1,mgW)).attr("height",h)
+    .attr("fill","#f59e0b").attr("rx",2)
+    .on("mouseover",(e)=>{
+      showTip(e,`<b>${c.name}</b><br>Steam: ${fmt(c.steam)} (${c.steam_pct}%)<br>MobyGames: ${fmt(c.mg)} (${100-c.steam_pct}%)<br>Combined: ${fmt(c.total)}`);
+      highlightCluster(c.name);
+    })
+    .on("mousemove",moveTip).on("mouseout",(e)=>{hideTip();resetHighlight();});
+
+  // cluster label
+  if (h > 12) {
+    clG.append("text")
+      .attr("class","cluster-label")
+      .attr("x", CL_MID).attr("y", y+h/2).attr("dy","0.35em")
+      .attr("font-size", h>22?"10px":h>14?"8.5px":"7px")
+      .text(c.name);
+  }
+});
+
+// ── tooltip ───────────────────────────────────────────────────────────────────
+const tip = document.getElementById("tip");
+function showTip(e, html){ tip.innerHTML=html; tip.style.opacity=1; moveTip(e); }
+function moveTip(e){
+  let x=e.clientX+14, y=e.clientY-10;
+  if(x+290>window.innerWidth) x=e.clientX-300;
+  tip.style.left=x+"px"; tip.style.top=y+"px";
+}
+function hideTip(){ tip.style.opacity=0; }
+
+// ── highlight ─────────────────────────────────────────────────────────────────
+function resetHighlight(){
+  svg.selectAll(".link").attr("fill-opacity", d => {
+    const cls = d3.select(d).attr("class")||"";
+    return .32;
+  });
+  svg.selectAll(".link").style("display","");
+  svg.selectAll(".node-rect").attr("opacity",1);
+}
+function highlightCluster(name){
+  svg.selectAll(".link").each(function(){
+    const el = d3.select(this);
+    el.attr("fill-opacity", el.attr("data-cluster")===name ? .75 : .05);
+  });
+}
+function highlightCat(name, side){
+  svg.selectAll(".link").each(function(){
+    const el = d3.select(this);
+    el.attr("fill-opacity", el.attr("data-cat")===name ? .75 : .05);
+  });
+}
+
+// ── mode filter buttons ────────────────────────────────────────────────────────
+let curMode = "all";
+function setMode(mode){
+  curMode = mode;
+  document.querySelectorAll(".btn").forEach(b=>b.classList.remove("active"));
+  document.getElementById("btn-"+mode)?.classList.add("active");
+  document.getElementById("steam-only-panel").style.display = "none";
+
+  if (mode==="all"){
+    svg.selectAll(".link").style("display","");
+  } else if (mode==="steam"){
+    svg.selectAll(".link").style("display", function(){ return d3.select(this).classed("steam-link")?"":"none"; });
+  } else if (mode==="mg"){
+    svg.selectAll(".link").style("display", function(){ return d3.select(this).classed("mg-link")?"":"none"; });
+  } else if (mode==="steamonly"){
+    svg.selectAll(".link").style("display","none");
+    buildSteamOnlyPanel();
+    document.getElementById("steam-only-panel").style.display = "block";
+    document.getElementById("btn-so").classList.add("active");
+  }
+}
+
+function buildSteamOnlyPanel(){
+  const grid = document.getElementById("so-grid");
+  if (grid.children.length) return;
+  DATA.steam_only_clusters.forEach(c => {
+    c.top_tags.forEach(t => {
+      const el = document.createElement("div");
+      el.className = "so-tag";
+      el.title = c.cluster;
+      el.textContent = t;
+      grid.appendChild(el);
+    });
+  });
+}
+
+// ── cluster legend ────────────────────────────────────────────────────────────
+const legEl = document.getElementById("legend-clusters");
+clusters.forEach(c => {
+  const item = document.createElement("div");
+  item.className = "lc-item";
+  item.innerHTML = `<div class="lc-sw" style="background:${clusterColor[c.name]}"></div><span>${c.name}</span>`;
+  item.addEventListener("click", ()=>highlightCluster(c.name));
+  legEl.appendChild(item);
+});
+</script>
+</body>
+</html>
