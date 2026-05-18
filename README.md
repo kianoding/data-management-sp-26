@@ -68,7 +68,7 @@ DATA_CREDITS.md                  ← Full attribution for all data sources
 └── analysis_pipeline.py             ← Standalone reproducible script
 
 📄 DOCUMENTATION
-├── data_management_plan.pdf         ← DMP + plan vs. actual addendum
+├── data_management_plan_V2.pdf         ← DMP + plan vs. actual addendum
 ├── full_report.pdf                  ← full report includes methodologies and analysis
 ├── research_poster.pdf              ← Visual summary of the full pipeline
 ├── ERD_ASCII.md                     ← Entity-relationship diagram + schema SQL
