@@ -2,7 +2,6 @@
 
 **Kelsey Kiantoro · INFO628 Data Librarianship & Management · Prof. Vicky Steeves · Pratt School of Information · May 2026**
 
----
 
 ## Research Question
 
@@ -10,7 +9,6 @@
 
 Steam allows any player to apply any label to any game — producing hundreds of flat, unstructured tags with no hierarchy and no controlled vocabulary. This project transforms that folksonomy into a FAIR-compliant relational database, then compares it against MobyGames' controlled vocabulary to show what is gained (and lost) in that translation.
 
----
 
 ## Project Deliverables
 
@@ -20,7 +18,6 @@ Steam allows any player to apply any label to any game — producing hundreds of
 | [Data Management Plan](data_management_plan.pdf) | DMP + plan vs. actual addendum |
 | [Research Poster](research_poster.pdf) | Visual summary of the full pipeline |
 
----
 
 ## The Project in Three Steps
 
