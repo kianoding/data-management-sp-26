@@ -69,6 +69,7 @@ DATA_CREDITS.md                  ← Full attribution for all data sources
 
 📄 DOCUMENTATION
 ├── data_management_plan.pdf         ← DMP + plan vs. actual addendum
+├── full_report.pdf                  ← full report includes methodologies and analysis
 ├── research_poster.pdf              ← Visual summary of the full pipeline
 ├── ERD_ASCII.md                     ← Entity-relationship diagram + schema SQL
 └── nested_genre.md                  ← Classification decisions and methodology
