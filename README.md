@@ -62,6 +62,7 @@ README.md                        ← This file
 DATA_CREDITS.md                  ← Full attribution for all data sources
 
 📓 CODE
+├── CODE_README.md  
 ├── steam_fair_pipeline_v2.ipynb     ← Full pipeline notebook (Google Colab)
 ├── build_db_v2.py                   ← SQLite database builder
 └── analysis_pipeline.py             ← Standalone reproducible script
