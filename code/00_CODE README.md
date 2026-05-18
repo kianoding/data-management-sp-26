@@ -18,7 +18,7 @@ Upload `steam_games_2026.csv` (download from [Kaggle](https://www.kaggle.com/dat
 | # | Title | Description | Link |
 |---|-------|-------------|------|
 | 1 | **Data Pipeline Notebook** | Full pipeline: load CSV → extract tags → classify by Grelier framework → build genre hierarchy → visualize | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kianoding/data-management-sp-26/blob/main/code/steam_fair_pipeline_v2.ipynb) |
-| 2 | **Database Builder** | Reads cleaned CSVs → builds 7-table SQLite database with foreign key constraints, normalized to 3NF | [build_db_v2.py](build_db_v2.py) |
+| 2 | **Database Builder** | Reads cleaned CSVs → builds 7-table SQLite database with foreign key constraints, normalized to 3NF | [build_db_v2.py](code/build_db_v2.py) |
 | 3 | **Reproducible Script** | Standalone open-source Python script — runs all steps end to end without Colab or proprietary tools | [analysis_pipeline.py](code/analysis-pipeline.py) |
 
 
