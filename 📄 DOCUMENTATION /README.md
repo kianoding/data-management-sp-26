@@ -58,17 +58,18 @@ Neither system is wrong. They answer different questions. Steam describes how a 
 ## Key Files
 
 ```
+README.md                        ← This file
+DATA_CREDITS.md                  ← Full attribution for all data sources
+
 📓 CODE
 ├── steam_fair_pipeline_v2.ipynb     ← Full pipeline notebook (Google Colab)
 ├── build_db_v2.py                   ← SQLite database builder
 └── analysis_pipeline.py             ← Standalone reproducible script
 
 📄 DOCUMENTATION
-├── README.md                        ← This file
 ├── analysis_writeup.pdf             ← Methodology and findings (3 pages)
 ├── data_management_plan.pdf         ← DMP + plan vs. actual addendum
 ├── research_poster.pdf              ← Visual summary of the full pipeline
-├── DATA_CREDITS.md                  ← Full attribution for all data sources
 ├── Genre_ERD_ASCII.md               ← Entity-relationship diagram + schema SQL
 └── GENRE_TAXONOMY_DATA_FLOW.md      ← Classification decisions and methodology
 
