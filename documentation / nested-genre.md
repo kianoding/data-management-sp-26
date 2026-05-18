@@ -314,9 +314,8 @@ Genre table with self-referencing foreign keys
 
 This taxonomy is fully reproducible:
 1. Source data: Publicly available Steam Trends 2023 dataset
-2. Classification rules: Documented in Python script
-3. Manual decisions: Documented in Genre Hierarchy Plan
-4. Theoretical framework: Cited academic papers
+2. Manual decisions: Documented in Genre Hierarchy Plan
+3. Theoretical framework: Cited academic papers
 5. All intermediate files: Preserved and timestamped
 
 Another researcher following this documentation can recreate the exact same 128-genre hierarchy.
