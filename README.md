@@ -73,6 +73,9 @@ DATA_CREDITS.md                  ← Full attribution for all data sources
 ├── ERD_ASCII.md                     ← Entity-relationship diagram + schema SQL
 └── nested_genre.md                  ← Classification decisions and methodology
 
+📊 VIZ (WIP)
+├── steamdb-network.html             ← network graph of SteamDB Category
+
 📊 DATA (WIP)
 ├── steam_games_2026.csv             ← Primary dataset (Waddah Ali, CC BY-NC-SA 4.0)
 ├── steam_tags_full_taxonomy.csv     ← All 370 tags with Grelier dimension labels
