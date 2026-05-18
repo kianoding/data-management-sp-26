@@ -63,23 +63,22 @@ DATA_CREDITS.md                  ← Full attribution for all data sources
 
 📓 CODE
 ├── CODE_README.md  
-├── steam_fair_pipeline_v2.ipynb     ← Full pipeline notebook (Google Colab)
+├── steam_pipeline.ipynb             ← Full pipeline notebook (Google Colab)
 ├── build_db_v2.py                   ← SQLite database builder
 └── analysis_pipeline.py             ← Standalone reproducible script
 
 📄 DOCUMENTATION
-├── analysis_writeup.pdf             ← Methodology and findings (3 pages)
 ├── data_management_plan.pdf         ← DMP + plan vs. actual addendum
 ├── research_poster.pdf              ← Visual summary of the full pipeline
-├── Genre_ERD_ASCII.md               ← Entity-relationship diagram + schema SQL
-└── GENRE_TAXONOMY_DATA_FLOW.md      ← Classification decisions and methodology
+├── ERD_ASCII.md                     ← Entity-relationship diagram + schema SQL
+└── nested_genre.md                  ← Classification decisions and methodology
 
-📊 DATA
+📊 DATA (WIP)
 ├── steam_games_2026.csv             ← Primary dataset (Waddah Ali, CC BY-NC-SA 4.0)
 ├── steam_tags_full_taxonomy.csv     ← All 370 tags with Grelier dimension labels
 └── Genre/Genre StudyCase/           ← MobyGames vs SteamDB crosswalk CSVs
 
-🗄️ DATABASE
+🗄️ DATABASE (WIP)
 └── steam_games.db                   ← SQLite database (7 tables, ~11,170 rows)
 ```
 
