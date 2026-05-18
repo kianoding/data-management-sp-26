@@ -24,7 +24,7 @@ Upload `steam_games_2026.csv` (download from [Kaggle](https://www.kaggle.com/dat
 
 ## What Each File Does
 
-### 1. `steam_fair_pipeline_v2.ipynb`
+### 1. `steam_pipeline.ipynb`
 The main notebook. Run cells top to bottom in Google Colab.
 
 | Step | What It Does |
