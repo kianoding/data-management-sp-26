@@ -37,11 +37,13 @@ Ali, W. (2026). *Top 1000 Steam Games (2024–2026)* [Dataset]. Kaggle. https://
 ## 2. Publisher Dataset (consulted; not used in final analysis)
 
 **Name:** Publisher Classification Data  
-**Creator:** Gamalytics  
+**Creator:** Seyed Nasrollahi (online alias: seyedhn) 
 **Platform:** Gamalytics (gamalytic.com) — proprietary analytics platform  
 **License:** Not specified; data used for educational/research purposes only  
-**URL:** https://gamalytic.com  
+**URL:** https://docs.google.com/spreadsheets/u/1/d/15AN1I1mB67AJkpMuUUfM5ZUALkQmrvrznnPYO5QbqD0/edit?gid=1783327951#gid=1783327951
 **File used:** `Publisher/628-Publisher_Data Management_Base - 02_Publisher_V02.csv`
+**Publication/Last Updated Date:** April 7, 2026 (visible at the top of the image)Dataset
+**Title:** Publisher & Investor Database for Indie Devs (commonly referred to by the community as the Comprehensive list of indie game publishers)
 
 **What it contains:**
 - 205 Steam publishers
@@ -58,8 +60,7 @@ Ali, W. (2026). *Top 1000 Steam Games (2024–2026)* [Dataset]. Kaggle. https://
 - **Not used in the final write-up analysis** due to scope change — the project's primary focus shifted to tag taxonomy and the folksonomy/taxonomy comparison. The publisher table remains in the database but was not analyzed.
 
 **Citation (APA 7):**  
-Gamalytics. (n.d.). *Publisher data* [Dataset]. Gamalytics. https://gamalytic.com
-
+Nasrollahi, S. (2026, April 7). Publisher & investor database for indie devs [Data set]. Google Sheets. https://docs.google.com/spreadsheets/d/15AN1I1mB67AJkpMuUUfM5ZUALkQmrvrznnPYO5QbqD0/edit?gid=1783327951#gid=1783327951
 ---
 
 ## 3. Original Steam Tag Vocabulary (tag taxonomy source)
