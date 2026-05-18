@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steam Tag Taxonomy — Force Graph</title>
+<style>
+/* ── THEME TOKENS ─────────────────────────────────────── */
+:root {
+  --bg:         #f6f8fa;
+  --surface:    #ffffff;
+  --input-bg:   #f6f8fa;
+  --hover:      #f3f4f6;
+  --active-bg:  #ddf4ff;
+  --border:     #d0d7de;
+  --text:       #24292f;
+  --text-2:     #57606a;
+  --text-3:     #8c959f;
+  --accent:     #0969da;
+  --accent-dim: #0550ae;
+  --shadow-sm:  rgba(0,0,0,0.08);
+  --shadow-md:  rgba(0,0,0,0.12);
+  --lbl:        #24292f;
+  --lbl-big:    #1f2328;
+  --node-stroke-root: #24292f;
+  --node-stroke:      #ffffff;
+  --link-op:    0.50;
+}
+[data-theme="dark"] {
+  --bg:         #0d1117;
+  --surface:    #161b22;
+  --input-bg:   #0d1117;
+  --hover:      rgba(255,255,255,0.07);
+  --active-bg:  rgba(9,105,218,0.22);
+  --border:     rgba(255,255,255,0.1);
+  --text:       #e6edf3;
+  --text-2:     #8b949e;
+  --text-3:     #6e7681;
+  --accent:     #58a6ff;
+  --accent-dim: #79c0ff;
+  --shadow-sm:  rgba(0,0,0,0.35);
+  --shadow-md:  rgba(0,0,0,0.55);
+  --lbl:        #c9d1d9;
+  --lbl-big:    #f0f6fc;
+  --node-stroke-root: #f0f6fc;
+  --node-stroke:      #1f2937;
+  --link-op:    0.45;
+}
+
+/* ── RESET & BASE ─────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); overflow: hidden;
+  font-family: 'Segoe UI', system-ui, sans-serif; color: var(--text);
+  transition: background 0.25s, color 0.25s;
+}
+svg { display: block; width: 100vw; height: 100vh; }
+
+/* ── FOCUS RING (WCAG 2.4.7) ─────────────────────────── */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── GRAPH LINKS ─────────────────────────────────────── */
+.link { fill: none; stroke-opacity: var(--link-op); transition: stroke-opacity 0.2s; }
+.link.dimmed { stroke-opacity: 0.06; }
+.link.highlighted { stroke-opacity: 0.9; }
+
+/* ── GRAPH NODES ─────────────────────────────────────── */
+.node circle { cursor: pointer; transition: opacity 0.2s; }
+.node.dimmed circle { opacity: 0.12; }
+.node.dimmed text  { opacity: 0.08; }
+.node-label     { font-size: 9px;  fill: var(--lbl);     pointer-events: none; text-anchor: middle; }
+.node-label.big { font-size: 11px; fill: var(--lbl-big); font-weight: 700; }
+
+/* ── TOOLTIP ─────────────────────────────────────────── */
+.tooltip {
+  position: fixed; padding: 9px 13px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); border-radius: 7px; font-size: 12px; line-height: 1.6;
+  pointer-events: none; opacity: 0; transition: opacity 0.12s;
+  max-width: 230px; z-index: 200; box-shadow: 0 4px 16px var(--shadow-md);
+}
+
+/* ── SIDEBAR ─────────────────────────────────────────── */
+#sidebar {
+  position: fixed; left: 0; top: 0; width: 284px; height: 100vh;
+  background: var(--surface); border-right: 1px solid var(--border);
+  z-index: 100; display: flex; flex-direction: column;
+  overflow-y: auto; user-select: none;
+  transition: background 0.25s, border-color 0.25s;
+}
+#sidebar::-webkit-scrollbar { width: 4px; }
+#sidebar::-webkit-scrollbar-track { background: transparent; }
+#sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Header row */
+#sidebar-header {
+  padding: 14px 16px 12px; border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 2px;
+}
+#header-row { display: flex; align-items: center; justify-content: space-between; }
+#sidebar-header h1 { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+#sidebar-header p  { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+
+/* Theme toggle */
+#theme-toggle {
+  background: var(--hover); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 7px; cursor: pointer;
+  font-size: 14px; line-height: 1; color: var(--text-2);
+  transition: background 0.15s; flex-shrink: 0;
+}
+#theme-toggle:hover { background: var(--active-bg); }
+
+/* Section label */
+.section-label {
+  font-size: 10px; font-weight: 700; color: var(--text-2);
+  text-transform: uppercase; letter-spacing: 0.07em; display: block; margin-bottom: 8px;
+}
+
+/* ── SEARCH ─────────────────────────────────────────── */
+#search-section { padding: 12px 14px 10px; border-bottom: 1px solid var(--border); }
+#search-wrap { position: relative; }
+#search-input {
+  width: 100%; background: var(--input-bg); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text); font-size: 12px; padding: 7px 28px 7px 10px;
+  outline: none; font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+#search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(9,105,218,0.2); }
+#search-input::placeholder { color: var(--text-3); }
+#search-clear {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: var(--text-3); cursor: pointer;
+  font-size: 14px; line-height: 1; display: none; padding: 2px; border-radius: 3px;
+}
+#search-clear:hover { color: var(--text); background: var(--hover); }
+#search-results { margin-top: 6px; max-height: 160px; overflow-y: auto; }
+.sr-item {
+  padding: 5px 8px; border-radius: 5px; cursor: pointer;
+  font-size: 12px; color: var(--text); display: flex; align-items: center; gap: 7px;
+  transition: background 0.1s;
+}
+.sr-item:hover { background: var(--hover); }
+.sr-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.sr-wt  { margin-left: auto; font-size: 10px; color: var(--text-2); }
+#search-empty { font-size: 12px; color: var(--text-3); padding: 6px 8px; display: none; }
+
+/* ── TOP 10 ─────────────────────────────────────────── */
+#top10-section { padding: 12px 14px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#top10-list { display: flex; flex-direction: column; gap: 1px; }
+.t10-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 6px; border-radius: 5px; cursor: pointer; transition: background 0.1s;
+}
+.t10-item:hover { background: var(--hover); }
+.t10-rank { font-size: 10px; color: var(--text-3); width: 16px; text-align: right; flex-shrink: 0; }
+.t10-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.t10-name { font-size: 12px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t10-wt   { font-size: 10px; color: var(--text-3); flex-shrink: 0; }
+
+/* ── FILTER DROPDOWN ────────────────────────────────── */
+#filter-section { padding: 12px 14px 12px; border-bottom: 1px solid var(--border); }
+#filter-select {
+  width: 100%; background: var(--input-bg); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text); font-size: 12px; padding: 7px 32px 7px 10px;
+  cursor: pointer; outline: none; font-family: inherit; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%2357606a' d='M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+#filter-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(9,105,218,0.2); }
+[data-theme="dark"] #filter-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%238b949e' d='M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z'/%3E%3C/svg%3E");
+}
+
+/* ── LEGEND ─────────────────────────────────────────── */
+#legend {
+  position: fixed; top: 16px; right: 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  padding: 12px 14px; border-radius: 8px; z-index: 10; user-select: none;
+  box-shadow: 0 2px 8px var(--shadow-sm);
+  transition: background 0.25s, border-color 0.25s;
+}
+#legend h3 {
+  font-size: 10px; font-weight: 700; color: var(--text-2);
+  text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 8px;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+  cursor: pointer; color: var(--text); font-size: 12px; padding: 2px 0;
+  transition: color 0.15s; border-radius: 3px;
+}
+.legend-item:hover { color: var(--accent); }
+.legend-item.inactive { opacity: 0.4; }
+.legend-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.legend-count { margin-left: auto; padding-left: 12px; font-size: 10px; color: var(--text-3); }
+
+/* ── HINT & RESET ───────────────────────────────────── */
+#hint {
+  position: fixed; bottom: 14px; left: 50%;
+  transform: translateX(calc(-50% + 142px));
+  color: var(--text-3); font-size: 11px; z-index: 10; user-select: none; white-space: nowrap;
+}
+#reset-btn {
+  position: fixed; bottom: 14px; right: 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text-2); font-size: 11px; padding: 5px 10px; border-radius: 5px;
+  cursor: pointer; z-index: 10; transition: background 0.15s, color 0.15s;
+}
+#reset-btn:hover { background: var(--hover); color: var(--text); }
+
+/* ── CREDITS ────────────────────────────────────────── */
+#credits-section {
+  margin-top: auto; padding: 14px 16px 18px;
+  border-top: 1px solid var(--border); flex-shrink: 0;
+}
+#credits-section h2 {
+  font-size: 10px; font-weight: 700; color: var(--text-2);
+  text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 10px;
+}
+.credit-block { margin-bottom: 12px; }
+.credit-block:last-child { margin-bottom: 0; }
+.credit-title {
+  font-size: 11px; font-weight: 700; color: var(--text);
+  line-height: 1.4; display: block; margin-bottom: 4px;
+}
+.credit-sub {
+  font-size: 12px; color: var(--text-2); line-height: 1.5; display: block;
+}
+.credit-link {
+  font-size: 12px; color: var(--accent); text-decoration: none;
+  display: inline; line-height: 1.5;
+}
+.credit-link:hover { text-decoration: underline; }
+.credit-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.credit-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.chip {
+  font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 10px;
+  background: var(--hover); border: 1px solid var(--border); color: var(--text-2);
+}
+
+/* ── SCROLLBARS ─────────────────────────────────────── */
+#search-results::-webkit-scrollbar { width: 4px; }
+#search-results::-webkit-scrollbar-track { background: transparent; }
+#search-results::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── SKIP LINK (WCAG 2.4.1) ──────────────────────────── */
+#skip-link {
+  position: absolute; top: -40px; left: 8px; z-index: 9999;
+  background: var(--accent); color: #fff; padding: 6px 12px; border-radius: 4px;
+  font-size: 12px; text-decoration: none; font-weight: 600; transition: top 0.1s;
+}
+#skip-link:focus { top: 8px; }
+</style>
+</head>
+<body>
+
+<!-- Skip-to-content (WCAG 2.4.1) -->
+<a href="#graph" id="skip-link">Skip to graph</a>
+
+<!-- ── SIDEBAR ──────────────────────────────────────── -->
+<nav id="sidebar" aria-label="Graph controls" onclick="event.stopPropagation()">
+
+  <div id="sidebar-header">
+    <div id="header-row">
+      <h1>Steam Tag Taxonomy</h1>
+      <button id="theme-toggle" aria-label="Switch to dark mode" title="Toggle dark/light mode">🌙</button>
+    </div>
+    <p>Force-directed graph · tag relationships</p>
+  </div>
+
+  <section id="search-section" aria-labelledby="search-label">
+    <span class="section-label" id="search-label">Search tags</span>
+    <div id="search-wrap" role="search">
+      <label for="search-input" class="sr-only">Search tags by name</label>
+      <input id="search-input" type="search" placeholder="Type a tag name…"
+             autocomplete="off" spellcheck="false"
+             aria-label="Search tags by name"
+             aria-controls="search-results"
+             aria-autocomplete="list">
+      <button id="search-clear" aria-label="Clear search">✕</button>
+    </div>
+    <div id="search-results" role="listbox" aria-label="Search results">
+      <div id="search-empty" role="status" aria-live="polite">No matches found</div>
+    </div>
+  </section>
+
+  <section id="top10-section" aria-labelledby="top10-label">
+    <span class="section-label" id="top10-label">Top 10 by weight</span>
+    <div id="top10-list" role="list"></div>
+  </section>
+
+  <section id="filter-section" aria-labelledby="filter-label">
+    <span class="section-label" id="filter-label">Show only</span>
+    <label for="filter-select" class="sr-only">Filter nodes by level</label>
+    <select id="filter-select" aria-labelledby="filter-label">
+      <option value="all">All nodes</option>
+      <option value="top-level-genre">Top-Level Genre</option>
+      <option value="genre">Genre</option>
+      <option value="sub-genre">Sub-Genre</option>
+      <option value="tags">Tags</option>
+    </select>
+  </section>
+
+  <!-- Credits & Attribution -->
+  <section id="credits-section" aria-labelledby="credits-heading">
+    <h2 id="credits-heading">Credits &amp; Attribution</h2>
+
+    <div class="credit-block">
+      <span class="credit-title">Research Analysis</span>
+      <span class="credit-sub">Applying FAIR Principles to Community-Curated Gaming Data: Taxonomy, Folksonomy &amp; Data Curation</span>
+      <span class="credit-sub" style="margin-top:3px">
+        <a class="credit-link" href="https://kelseykiano.framer.website/kelsey-portfolio/kpt" target="_blank" rel="noopener noreferrer" aria-label="Kelsey Kiantoro portfolio – opens in new tab">Kelsey Kiantoro ↗</a>
+        · INFO628 Data Librarianship
+      </span>
+      <span class="credit-sub">
+        Prof. <a class="credit-link" href="https://www.pratt.edu/people/vicky-rampin/" target="_blank" rel="noopener noreferrer" aria-label="Vicky Rampin – opens in new tab">Vicky Rampin ↗</a>
+        · May 2026
+      </span>
+      <span class="credit-sub">
+        <a class="credit-link" href="https://www.pratt.edu/information/" target="_blank" rel="noopener noreferrer" aria-label="Pratt Institute School of Information – opens in new tab">Pratt Institute, School of Information ↗</a>
+      </span>
+    </div>
+
+    <div class="credit-block">
+      <span class="credit-title">Data Source</span>
+      <a class="credit-link" href="https://steamdb.info/tags/" target="_blank" rel="noopener noreferrer"
+         aria-label="SteamDB Tags – opens in new tab">
+        SteamDB Tags ↗
+      </a>
+      <span class="credit-sub">Community-curated tag categorization</span>
+    </div>
+
+    <div class="credit-block">
+      <span class="credit-title">Built with</span>
+      <div class="credit-chips" role="list">
+        <span class="chip" role="listitem">D3.js v7</span>
+        <span class="chip" role="listitem">Force Graph</span>
+        <span class="chip" role="listitem">Claude AI</span>
+        <span class="chip" role="listitem">WCAG 2.1 AA</span>
+      </div>
+    </div>
+  </section>
+
+</nav>
+<!-- end sidebar -->
+
+<div id="legend" role="region" aria-label="Category legend"><h3>Category</h3></div>
+<div class="tooltip" id="tooltip" role="tooltip" aria-live="polite"></div>
+<div id="hint" aria-hidden="true">Scroll to zoom &nbsp;·&nbsp; Drag nodes &nbsp;·&nbsp; Click to highlight</div>
+<button id="reset-btn" aria-label="Reset graph view">Reset view</button>
+<svg id="graph" role="img" aria-label="Steam tag taxonomy force-directed graph" tabindex="0"></svg>
+
+<!-- Screen-reader-only utility class -->
+<style>.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────────────
+const suits = [
+  { "source": "Gameplay", "target": "Top-Level Genres", "type": "Gameplay", "weight": 664367 },
+  { "source": "Gameplay", "target": "Genres", "type": "Gameplay", "weight": 554316 },
+  { "source": "Gameplay", "target": "Sub-Genres", "type": "Gameplay", "weight": 351475 },
+  { "source": "Gameplay", "target": "Actions & Activities", "type": "Gameplay", "weight": 122667 },
+  { "source": "Gameplay", "target": "Challenge", "type": "Gameplay", "weight": 58219 },
+  { "source": "Gameplay", "target": "Time", "type": "Gameplay", "weight": 42125 },
+  { "source": "Gameplay", "target": "Role-Playing Genres", "type": "Gameplay", "weight": 38229 },
+  { "source": "Gameplay", "target": "Sports", "type": "Gameplay", "weight": 50821 },
+  { "source": "Gameplay", "target": "Card & Board Genres", "type": "Gameplay", "weight": 40991 },
+  { "source": "Gameplay", "target": "Fighting", "type": "Gameplay", "weight": 10844 },
+  { "source": "Gameplay", "target": "Combat Sports", "type": "Gameplay", "weight": 4161 },
+  { "source": "Gameplay", "target": "Ball Sports", "type": "Gameplay", "weight": 3105 },
+  { "source": "Gameplay", "target": "Team Sports", "type": "Gameplay", "weight": 2339 },
+  { "source": "Gameplay", "target": "Winter Sports", "type": "Gameplay", "weight": 378 },
+  { "source": "Gameplay", "target": "Level Design", "type": "Gameplay", "weight": 84236 },
+  { "source": "Gameplay", "target": "Violence", "type": "Gameplay", "weight": 28036 },
+  { "source": "Gameplay", "target": "Military", "type": "Gameplay", "weight": 16560 },
+  { "source": "Narrative", "target": "Themes & Moods", "type": "Narrative", "weight": 753303 },
+  { "source": "Narrative", "target": "Story", "type": "Narrative", "weight": 140108 },
+  { "source": "Narrative", "target": "Scary", "type": "Narrative", "weight": 94711 },
+  { "source": "Narrative", "target": "Science Fiction", "type": "Narrative", "weight": 59714 },
+  { "source": "Narrative", "target": "Humor", "type": "Narrative", "weight": 49454 },
+  { "source": "Narrative", "target": "Adult Content", "type": "Narrative", "weight": 69517 },
+  { "source": "Narrative", "target": "Video Genres", "type": "Narrative", "weight": 247883 },
+  { "source": "Visuals", "target": "Visuals & Viewpoint", "type": "Visuals", "weight": 852771 },
+  { "source": "Visuals", "target": "Audio", "type": "Visuals", "weight": 24302 },
+  { "source": "Player Experience", "target": "Players", "type": "Player Experience", "weight": 233010 },
+  { "source": "Player Experience", "target": "Miscellaneous", "type": "Player Experience", "weight": 261623 },
+  { "source": "Player Experience", "target": "Customization", "type": "Player Experience", "weight": 22449 },
+  { "source": "Player Experience", "target": "Controls", "type": "Player Experience", "weight": 28014 },
+  { "source": "Player Experience", "target": "Software Genres", "type": "Player Experience", "weight": 32673 },
+  { "source": "Player Experience", "target": "Hardware", "type": "Player Experience", "weight": 319 },
+  { "source": "Player Experience", "target": "Character", "type": "Player Experience", "weight": 35562 },
+  { "source": "Player Experience", "target": "Mods", "type": "Player Experience", "weight": 5886 },
+  { "source": "Player Experience", "target": "Tools", "type": "Player Experience", "weight": 2734 },
+  { "source": "Player Experience", "target": "Uncategorized", "type": "Player Experience", "weight": 2564 },
+  { "source": "Player Experience", "target": "Franchises", "type": "Player Experience", "weight": 1427 },
+  { "source": "Top-Level Genres", "target": "Indie", "type": "Gameplay", "weight": 129907 },
+  { "source": "Top-Level Genres", "target": "Action", "type": "Gameplay", "weight": 105525 },
+  { "source": "Top-Level Genres", "target": "Casual", "type": "Gameplay", "weight": 100500 },
+  { "source": "Top-Level Genres", "target": "Adventure", "type": "Gameplay", "weight": 95556 },
+  { "source": "Top-Level Genres", "target": "Simulation", "type": "Gameplay", "weight": 63005 },
+  { "source": "Top-Level Genres", "target": "Strategy", "type": "Gameplay", "weight": 57186 },
+  { "source": "Top-Level Genres", "target": "RPG", "type": "Gameplay", "weight": 57152 },
+  { "source": "Top-Level Genres", "target": "Action-Adventure", "type": "Gameplay", "weight": 27329 },
+  { "source": "Top-Level Genres", "target": "Software", "type": "Gameplay", "weight": 4667 },
+  { "source": "Indie", "target": "Puzzle", "type": "Gameplay", "weight": 36754 },
+  { "source": "Indie", "target": "Arcade", "type": "Gameplay", "weight": 26126 },
+  { "source": "Indie", "target": "Platformer", "type": "Gameplay", "weight": 18753 },
+  { "source": "Indie", "target": "Visual Novel", "type": "Gameplay", "weight": 18314 },
+  { "source": "Indie", "target": "Roguelike", "type": "Gameplay", "weight": 15427 },
+  { "source": "Indie", "target": "Pixel Graphics", "type": "Gameplay", "weight": 36323 },
+  { "source": "Indie", "target": "2D", "type": "Gameplay", "weight": 70617 },
+  { "source": "Indie", "target": "Retro", "type": "Gameplay", "weight": 19817 },
+  { "source": "Indie", "target": "Sandbox", "type": "Gameplay", "weight": 13387 },
+  { "source": "Indie", "target": "Point & Click", "type": "Gameplay", "weight": 12924 },
+  { "source": "Action", "target": "Shooter", "type": "Gameplay", "weight": 21705 },
+  { "source": "Action", "target": "FPS", "type": "Gameplay", "weight": 13154 },
+  { "source": "Action", "target": "Action RPG", "type": "Gameplay", "weight": 12541 },
+  { "source": "Action", "target": "Action Roguelike", "type": "Gameplay", "weight": 11110 },
+  { "source": "Action", "target": "Hack and Slash", "type": "Gameplay", "weight": 8418 },
+  { "source": "Action", "target": "Beat 'em up", "type": "Gameplay", "weight": 3510 },
+  { "source": "Action", "target": "Souls-like", "type": "Gameplay", "weight": 3522 },
+  { "source": "Action", "target": "Metroidvania", "type": "Gameplay", "weight": 3535 },
+  { "source": "Action", "target": "Bullet Hell", "type": "Gameplay", "weight": 8854 },
+  { "source": "Action", "target": "Shoot 'Em Up", "type": "Gameplay", "weight": 8710 },
+  { "source": "Action", "target": "Third-Person Shooter", "type": "Gameplay", "weight": 5704 },
+  { "source": "Action", "target": "Hero Shooter", "type": "Gameplay", "weight": 1633 },
+  { "source": "Action", "target": "Arena Shooter", "type": "Gameplay", "weight": 4485 },
+  { "source": "Themes & Moods", "target": "Atmospheric", "type": "Narrative", "weight": 43444 },
+  { "source": "Themes & Moods", "target": "Fantasy", "type": "Narrative", "weight": 36765 },
+  { "source": "Themes & Moods", "target": "Relaxing", "type": "Narrative", "weight": 27036 },
+  { "source": "Themes & Moods", "target": "Funny", "type": "Narrative", "weight": 24398 },
+  { "source": "Themes & Moods", "target": "Family Friendly", "type": "Narrative", "weight": 20980 },
+  { "source": "Themes & Moods", "target": "Mystery", "type": "Narrative", "weight": 16837 },
+  { "source": "Themes & Moods", "target": "Survival", "type": "Narrative", "weight": 15812 },
+  { "source": "Themes & Moods", "target": "Management", "type": "Narrative", "weight": 13163 },
+  { "source": "Themes & Moods", "target": "Medieval", "type": "Narrative", "weight": 12699 },
+  { "source": "Themes & Moods", "target": "Magic", "type": "Narrative", "weight": 12605 },
+  { "source": "Themes & Moods", "target": "Old School", "type": "Narrative", "weight": 11796 },
+  { "source": "Themes & Moods", "target": "Building", "type": "Narrative", "weight": 11175 },
+  { "source": "Themes & Moods", "target": "Tactical", "type": "Narrative", "weight": 11164 },
+  { "source": "Themes & Moods", "target": "Drama", "type": "Narrative", "weight": 10935 },
+  { "source": "Themes & Moods", "target": "Crafting", "type": "Narrative", "weight": 10166 },
+  { "source": "Themes & Moods", "target": "Futuristic", "type": "Narrative", "weight": 10075 },
+  { "source": "Themes & Moods", "target": "Emotional", "type": "Narrative", "weight": 9984 },
+  { "source": "Themes & Moods", "target": "Logic", "type": "Narrative", "weight": 9929 },
+  { "source": "Themes & Moods", "target": "Nature", "type": "Narrative", "weight": 8721 },
+  { "source": "Themes & Moods", "target": "1990's", "type": "Narrative", "weight": 8002 },
+  { "source": "Themes & Moods", "target": "Surreal", "type": "Narrative", "weight": 7793 },
+  { "source": "Themes & Moods", "target": "1980s", "type": "Narrative", "weight": 7136 },
+  { "source": "Themes & Moods", "target": "Historical", "type": "Narrative", "weight": 6295 },
+  { "source": "Themes & Moods", "target": "Economy", "type": "Narrative", "weight": 6267 },
+  { "source": "Themes & Moods", "target": "Investigation", "type": "Narrative", "weight": 6040 },
+  { "source": "Themes & Moods", "target": "Psychological", "type": "Narrative", "weight": 5963 },
+  { "source": "Themes & Moods", "target": "LGBTQ+", "type": "Narrative", "weight": 5727 },
+  { "source": "Themes & Moods", "target": "Supernatural", "type": "Narrative", "weight": 5142 },
+  { "source": "Themes & Moods", "target": "Cyberpunk", "type": "Narrative", "weight": 5082 },
+  { "source": "Themes & Moods", "target": "Loot", "type": "Narrative", "weight": 4253 },
+  { "source": "Themes & Moods", "target": "Modern", "type": "Narrative", "weight": 4168 },
+  { "source": "Themes & Moods", "target": "Cats", "type": "Narrative", "weight": 3847 },
+  { "source": "Themes & Moods", "target": "Cozy", "type": "Narrative", "weight": 3451 },
+  { "source": "Themes & Moods", "target": "Automation", "type": "Narrative", "weight": 3388 },
+  { "source": "Themes & Moods", "target": "Mythology", "type": "Narrative", "weight": 3217 },
+  { "source": "Themes & Moods", "target": "Capitalism", "type": "Narrative", "weight": 3153 },
+  { "source": "Themes & Moods", "target": "Memes", "type": "Narrative", "weight": 3141 },
+  { "source": "Themes & Moods", "target": "Destruction", "type": "Narrative", "weight": 2787 },
+  { "source": "Themes & Moods", "target": "Philosophical", "type": "Narrative", "weight": 2618 },
+  { "source": "Themes & Moods", "target": "Cooking", "type": "Narrative", "weight": 2573 },
+  { "source": "Themes & Moods", "target": "Noir", "type": "Narrative", "weight": 2295 },
+  { "source": "Themes & Moods", "target": "America", "type": "Narrative", "weight": 2006 },
+  { "source": "Themes & Moods", "target": "Dragons", "type": "Narrative", "weight": 1852 },
+  { "source": "Themes & Moods", "target": "Wholesome", "type": "Narrative", "weight": 1778 },
+  { "source": "Themes & Moods", "target": "Conspiracy", "type": "Narrative", "weight": 1772 },
+  { "source": "Themes & Moods", "target": "Agriculture", "type": "Narrative", "weight": 1738 },
+  { "source": "Themes & Moods", "target": "Gothic", "type": "Narrative", "weight": 1708 },
+  { "source": "Themes & Moods", "target": "Mining", "type": "Narrative", "weight": 1646 },
+  { "source": "Themes & Moods", "target": "Underground", "type": "Narrative", "weight": 1644 },
+  { "source": "Themes & Moods", "target": "Satire", "type": "Narrative", "weight": 1642 },
+  { "source": "Themes & Moods", "target": "Transportation", "type": "Narrative", "weight": 1444 },
+  { "source": "Themes & Moods", "target": "Dog", "type": "Narrative", "weight": 1408 },
+  { "source": "Themes & Moods", "target": "Pirates", "type": "Narrative", "weight": 1373 },
+  { "source": "Themes & Moods", "target": "Gambling", "type": "Narrative", "weight": 1323 },
+  { "source": "Themes & Moods", "target": "Underwater", "type": "Narrative", "weight": 1321 },
+  { "source": "Themes & Moods", "target": "Trains", "type": "Narrative", "weight": 1294 },
+  { "source": "Themes & Moods", "target": "Time Travel", "type": "Narrative", "weight": 1294 },
+  { "source": "Themes & Moods", "target": "Political", "type": "Narrative", "weight": 1280 },
+  { "source": "Themes & Moods", "target": "Immersive", "type": "Narrative", "weight": 1150 },
+  { "source": "Themes & Moods", "target": "Ninja", "type": "Narrative", "weight": 1128 },
+  { "source": "Themes & Moods", "target": "Faith", "type": "Narrative", "weight": 1013 },
+  { "source": "Themes & Moods", "target": "Politics", "type": "Narrative", "weight": 1011 },
+  { "source": "Themes & Moods", "target": "Western", "type": "Narrative", "weight": 1007 },
+  { "source": "Themes & Moods", "target": "Dinosaurs", "type": "Narrative", "weight": 988 },
+  { "source": "Themes & Moods", "target": "Programming", "type": "Narrative", "weight": 973 },
+  { "source": "Themes & Moods", "target": "Party", "type": "Narrative", "weight": 886 },
+  { "source": "Themes & Moods", "target": "Diplomacy", "type": "Narrative", "weight": 881 },
+  { "source": "Themes & Moods", "target": "Snow", "type": "Narrative", "weight": 798 },
+  { "source": "Themes & Moods", "target": "Heist", "type": "Narrative", "weight": 741 },
+  { "source": "Themes & Moods", "target": "Horses", "type": "Narrative", "weight": 702 },
+  { "source": "Themes & Moods", "target": "Foreign", "type": "Narrative", "weight": 675 },
+  { "source": "Themes & Moods", "target": "Nostalgia", "type": "Narrative", "weight": 536 },
+  { "source": "Themes & Moods", "target": "Illuminati", "type": "Narrative", "weight": 471 },
+  { "source": "Themes & Moods", "target": "Werewolves", "type": "Narrative", "weight": 452 },
+  { "source": "Themes & Moods", "target": "Rome", "type": "Narrative", "weight": 362 },
+  { "source": "Themes & Moods", "target": "Dwarf", "type": "Narrative", "weight": 348 },
+  { "source": "Themes & Moods", "target": "Vikings", "type": "Narrative", "weight": 187 },
+  { "source": "Themes & Moods", "target": "Elf", "type": "Narrative", "weight": 169 },
+  { "source": "Themes & Moods", "target": "Birds", "type": "Narrative", "weight": 147 },
+  { "source": "Themes & Moods", "target": "Lemmings", "type": "Narrative", "weight": 129 },
+  { "source": "Themes & Moods", "target": "Fox", "type": "Narrative", "weight": 79 },
+  { "source": "Themes & Moods", "target": "Coding", "type": "Narrative", "weight": 74 },
+  { "source": "Story", "target": "Story Rich", "type": "Narrative", "weight": 37734 },
+  { "source": "Story", "target": "Choices Matter", "type": "Narrative", "weight": 19135 },
+  { "source": "Story", "target": "Visual Novel", "type": "Narrative", "weight": 18314 },
+  { "source": "Story", "target": "Multiple Endings", "type": "Narrative", "weight": 16707 },
+  { "source": "Story", "target": "Interactive Fiction", "type": "Narrative", "weight": 10475 },
+  { "source": "Story", "target": "Choose Your Own Adventure", "type": "Narrative", "weight": 10184 },
+  { "source": "Story", "target": "Romance", "type": "Narrative", "weight": 10099 },
+  { "source": "Story", "target": "Lore-Rich", "type": "Narrative", "weight": 6371 },
+  { "source": "Story", "target": "Narration", "type": "Narrative", "weight": 5946 },
+  { "source": "Story", "target": "Conversation", "type": "Narrative", "weight": 5861 },
+  { "source": "Story", "target": "Detective", "type": "Narrative", "weight": 5353 },
+  { "source": "Story", "target": "Narrative", "type": "Narrative", "weight": 1530 },
+  { "source": "Story", "target": "Dynamic Narration", "type": "Narrative", "weight": 1377 },
+  { "source": "Story", "target": "Otome", "type": "Narrative", "weight": 1070 },
+  { "source": "Story", "target": "Well-Written", "type": "Narrative", "weight": 210 },
+  { "source": "Story", "target": "Based On A Novel", "type": "Narrative", "weight": 123 },
+  { "source": "Scary", "target": "Horror", "type": "Narrative", "weight": 23664 },
+  { "source": "Scary", "target": "Dark", "type": "Narrative", "weight": 16941 },
+  { "source": "Scary", "target": "Psychological Horror", "type": "Narrative", "weight": 15538 },
+  { "source": "Scary", "target": "Dark Fantasy", "type": "Narrative", "weight": 10139 },
+  { "source": "Scary", "target": "Survival Horror", "type": "Narrative", "weight": 8954 },
+  { "source": "Scary", "target": "Zombies", "type": "Narrative", "weight": 6137 },
+  { "source": "Scary", "target": "Thriller", "type": "Narrative", "weight": 5762 },
+  { "source": "Scary", "target": "Dark Humor", "type": "Narrative", "weight": 5259 },
+  { "source": "Scary", "target": "Demons", "type": "Narrative", "weight": 4969 },
+  { "source": "Scary", "target": "Crime", "type": "Narrative", "weight": 3121 },
+  { "source": "Scary", "target": "Dark Comedy", "type": "Narrative", "weight": 2464 },
+  { "source": "Scary", "target": "Lovecraftian", "type": "Narrative", "weight": 2225 },
+  { "source": "Scary", "target": "Vampire", "type": "Narrative", "weight": 1270 },
+  { "source": "Scary", "target": "Assassin", "type": "Narrative", "weight": 868 },
+  { "source": "Scary", "target": "Jump Scare", "type": "Narrative", "weight": 273 },
+  { "source": "Science Fiction", "target": "Sci-fi", "type": "Narrative", "weight": 22075 },
+  { "source": "Science Fiction", "target": "Space", "type": "Narrative", "weight": 10476 },
+  { "source": "Science Fiction", "target": "Post-apocalyptic", "type": "Narrative", "weight": 7277 },
+  { "source": "Science Fiction", "target": "Aliens", "type": "Narrative", "weight": 4730 },
+  { "source": "Science Fiction", "target": "Dystopian", "type": "Narrative", "weight": 4065 },
+  { "source": "Science Fiction", "target": "Alternate History", "type": "Narrative", "weight": 3324 },
+  { "source": "Science Fiction", "target": "Mechs", "type": "Narrative", "weight": 1556 },
+  { "source": "Science Fiction", "target": "Steampunk", "type": "Narrative", "weight": 1307 },
+  { "source": "Science Fiction", "target": "Superhero", "type": "Narrative", "weight": 929 },
+  { "source": "Science Fiction", "target": "Transhumanism", "type": "Narrative", "weight": 615 },
+  { "source": "Science Fiction", "target": "Mars", "type": "Narrative", "weight": 441 },
+  { "source": "Science Fiction", "target": "Spaceships", "type": "Narrative", "weight": 349 },
+  { "source": "Humor", "target": "Funny", "type": "Narrative", "weight": 24398 },
+  { "source": "Humor", "target": "Comedy", "type": "Narrative", "weight": 15469 },
+  { "source": "Humor", "target": "Parody", "type": "Narrative", "weight": 1869 },
+  { "source": "Adult Content", "target": "Sexual Content", "type": "Narrative", "weight": 17411 },
+  { "source": "Adult Content", "target": "Nudity", "type": "Narrative", "weight": 16580 },
+  { "source": "Adult Content", "target": "Adult Content", "type": "Narrative", "weight": 13087 },
+  { "source": "Adult Content", "target": "Mature", "type": "Narrative", "weight": 8130 },
+  { "source": "Adult Content", "target": "Hentai", "type": "Narrative", "weight": 7166 },
+  { "source": "Adult Content", "target": "NSFW", "type": "Narrative", "weight": 7143 },
+  { "source": "Video Genres", "target": "Short", "type": "Narrative", "weight": 3410 },
+  { "source": "Video Genres", "target": "Movie", "type": "Narrative", "weight": 1655 },
+  { "source": "Video Genres", "target": "Episodic", "type": "Narrative", "weight": 709 },
+  { "source": "Video Genres", "target": "360 Video", "type": "Narrative", "weight": 388 },
+  { "source": "Video Genres", "target": "Gaming", "type": "Narrative", "weight": 277 },
+  { "source": "Video Genres", "target": "Documentary", "type": "Narrative", "weight": 212 },
+  { "source": "Visuals & Viewpoint", "target": "2D", "type": "Visuals", "weight": 70617 },
+  { "source": "Visuals & Viewpoint", "target": "3D", "type": "Visuals", "weight": 57506 },
+  { "source": "Visuals & Viewpoint", "target": "Colorful", "type": "Visuals", "weight": 39228 },
+  { "source": "Visuals & Viewpoint", "target": "Pixel Graphics", "type": "Visuals", "weight": 36323 },
+  { "source": "Visuals & Viewpoint", "target": "Cute", "type": "Visuals", "weight": 35796 },
+  { "source": "Visuals & Viewpoint", "target": "First-Person", "type": "Visuals", "weight": 33674 },
+  { "source": "Visuals & Viewpoint", "target": "Anime", "type": "Visuals", "weight": 24297 },
+  { "source": "Visuals & Viewpoint", "target": "Stylized", "type": "Visuals", "weight": 23818 },
+  { "source": "Visuals & Viewpoint", "target": "Third Person", "type": "Visuals", "weight": 21417 },
+  { "source": "Visuals & Viewpoint", "target": "Top-Down", "type": "Visuals", "weight": 20503 },
+  { "source": "Visuals & Viewpoint", "target": "Realistic", "type": "Visuals", "weight": 19268 },
+  { "source": "Visuals & Viewpoint", "target": "Cartoony", "type": "Visuals", "weight": 16692 },
+  { "source": "Visuals & Viewpoint", "target": "Hand-drawn", "type": "Visuals", "weight": 13416 },
+  { "source": "Visuals & Viewpoint", "target": "Minimalist", "type": "Visuals", "weight": 12811 },
+  { "source": "Visuals & Viewpoint", "target": "VR", "type": "Visuals", "weight": 9970 },
+  { "source": "Visuals & Viewpoint", "target": "Cartoon", "type": "Visuals", "weight": 9859 },
+  { "source": "Visuals & Viewpoint", "target": "Text-Based", "type": "Visuals", "weight": 7032 },
+  { "source": "Visuals & Viewpoint", "target": "Cinematic", "type": "Visuals", "weight": 6827 },
+  { "source": "Visuals & Viewpoint", "target": "2.5D", "type": "Visuals", "weight": 6312 },
+  { "source": "Visuals & Viewpoint", "target": "Isometric", "type": "Visuals", "weight": 6123 },
+  { "source": "Visuals & Viewpoint", "target": "Abstract", "type": "Visuals", "weight": 4993 },
+  { "source": "Visuals & Viewpoint", "target": "3D Vision", "type": "Visuals", "weight": 1807 },
+  { "source": "Visuals & Viewpoint", "target": "Split Screen", "type": "Visuals", "weight": 1772 },
+  { "source": "Visuals & Viewpoint", "target": "Voxel", "type": "Visuals", "weight": 1470 },
+  { "source": "Visuals & Viewpoint", "target": "FMV", "type": "Visuals", "weight": 1394 },
+  { "source": "Visuals & Viewpoint", "target": "Beautiful", "type": "Visuals", "weight": 1085 },
+  { "source": "Visuals & Viewpoint", "target": "Combat", "type": "Visuals", "weight": 25033 },
+  { "source": "Visuals & Viewpoint", "target": "Linear", "type": "Visuals", "weight": 16989 },
+  { "source": "Visuals & Viewpoint", "target": "Physics", "type": "Visuals", "weight": 15301 },
+  { "source": "Visuals & Viewpoint", "target": "Procedural Generation", "type": "Visuals", "weight": 9576 },
+  { "source": "Visuals & Viewpoint", "target": "Score Attack", "type": "Visuals", "weight": 6947 },
+  { "source": "Visuals & Viewpoint", "target": "Inventory Management", "type": "Visuals", "weight": 4569 },
+  { "source": "Visuals & Viewpoint", "target": "6DOF", "type": "Visuals", "weight": 1684 },
+  { "source": "Visuals & Viewpoint", "target": "Quick-Time Events", "type": "Visuals", "weight": 1633 },
+  { "source": "Visuals & Viewpoint", "target": "Asymmetric VR", "type": "Visuals", "weight": 260 },
+  { "source": "Audio", "target": "Soundtrack", "type": "Visuals", "weight": 14002 },
+  { "source": "Audio", "target": "Great Soundtrack", "type": "Visuals", "weight": 5617 },
+  { "source": "Audio", "target": "Music", "type": "Visuals", "weight": 3193 },
+  { "source": "Audio", "target": "Music-Based Procedural Generation", "type": "Visuals", "weight": 637 },
+  { "source": "Audio", "target": "Electronic Music", "type": "Visuals", "weight": 345 },
+  { "source": "Audio", "target": "Ambient", "type": "Visuals", "weight": 326 },
+  { "source": "Audio", "target": "Instrumental Music", "type": "Visuals", "weight": 217 },
+  { "source": "Audio", "target": "Rock Music", "type": "Visuals", "weight": 175 },
+  { "source": "Audio", "target": "8-bit Music", "type": "Visuals", "weight": 122 },
+  { "source": "Audio", "target": "Electronic", "type": "Visuals", "weight": 85 },
+  { "source": "Genres", "target": "Sandbox", "type": "Gameplay", "weight": 13387 },
+  { "source": "Genres", "target": "Walking Simulator", "type": "Gameplay", "weight": 8153 },
+  { "source": "Genres", "target": "Dating Sim", "type": "Gameplay", "weight": 8079 },
+  { "source": "Genres", "target": "JRPG", "type": "Gameplay", "weight": 7592 },
+  { "source": "Genres", "target": "Life Sim", "type": "Gameplay", "weight": 7479 },
+  { "source": "Genres", "target": "Board Game", "type": "Gameplay", "weight": 5036 },
+  { "source": "Genres", "target": "Tower Defense", "type": "Gameplay", "weight": 4959 },
+  { "source": "Genres", "target": "RTS", "type": "Gameplay", "weight": 4752 },
+  { "source": "Genres", "target": "City Builder", "type": "Gameplay", "weight": 4288 },
+  { "source": "Genres", "target": "Automobile Sim", "type": "Gameplay", "weight": 3067 },
+  { "source": "Genres", "target": "Rhythm", "type": "Gameplay", "weight": 2840 },
+  { "source": "Genres", "target": "Auto Battler", "type": "Gameplay", "weight": 2618 },
+  { "source": "Genres", "target": "Word Game", "type": "Gameplay", "weight": 2460 },
+  { "source": "Genres", "target": "Colony Sim", "type": "Gameplay", "weight": 2210 },
+  { "source": "Genres", "target": "Grand Strategy", "type": "Gameplay", "weight": 2153 },
+  { "source": "Genres", "target": "Space Sim", "type": "Gameplay", "weight": 2152 },
+  { "source": "Genres", "target": "eSports", "type": "Gameplay", "weight": 2130 },
+  { "source": "Genres", "target": "Party Game", "type": "Gameplay", "weight": 2128 },
+  { "source": "Genres", "target": "Battle Royale", "type": "Gameplay", "weight": 1803 },
+  { "source": "Genres", "target": "God Game", "type": "Gameplay", "weight": 1388 },
+  { "source": "Genres", "target": "Open World Survival Craft", "type": "Gameplay", "weight": 1304 },
+  { "source": "Genres", "target": "4X", "type": "Gameplay", "weight": 1171 },
+  { "source": "Genres", "target": "MOBA", "type": "Gameplay", "weight": 988 },
+  { "source": "Genres", "target": "Trivia", "type": "Gameplay", "weight": 733 },
+  { "source": "Genres", "target": "Pinball", "type": "Gameplay", "weight": 397 },
+  { "source": "Genres", "target": "Social Deduction", "type": "Gameplay", "weight": 395 },
+  { "source": "Genres", "target": "Musou", "type": "Gameplay", "weight": 99 },
+  { "source": "Genres", "target": "Hobby Sim", "type": "Gameplay", "weight": 75 },
+  { "source": "Sub-Genres", "target": "Hidden Object", "type": "Gameplay", "weight": 9477 },
+  { "source": "Sub-Genres", "target": "Side Scroller", "type": "Gameplay", "weight": 9140 },
+  { "source": "Sub-Genres", "target": "Puzzle Platformer", "type": "Gameplay", "weight": 8852 },
+  { "source": "Sub-Genres", "target": "Clicker", "type": "Gameplay", "weight": 8170 },
+  { "source": "Sub-Genres", "target": "Dungeon Crawler", "type": "Gameplay", "weight": 7942 },
+  { "source": "Sub-Genres", "target": "Idler", "type": "Gameplay", "weight": 6447 },
+  { "source": "Sub-Genres", "target": "Top-Down Shooter", "type": "Gameplay", "weight": 6224 },
+  { "source": "Sub-Genres", "target": "Collectathon", "type": "Gameplay", "weight": 5371 },
+  { "source": "Sub-Genres", "target": "Precision Platformer", "type": "Gameplay", "weight": 5137 },
+  { "source": "Sub-Genres", "target": "Creature Collector", "type": "Gameplay", "weight": 3675 },
+  { "source": "Sub-Genres", "target": "Runner", "type": "Gameplay", "weight": 3434 },
+  { "source": "Sub-Genres", "target": "Twin Stick Shooter", "type": "Gameplay", "weight": 2497 },
+  { "source": "Sub-Genres", "target": "Match 3", "type": "Gameplay", "weight": 1917 },
+  { "source": "Sub-Genres", "target": "Looter Shooter", "type": "Gameplay", "weight": 1826 },
+  { "source": "Sub-Genres", "target": "Solitaire", "type": "Gameplay", "weight": 1653 },
+  { "source": "Sub-Genres", "target": "Sokoban", "type": "Gameplay", "weight": 1329 },
+  { "source": "Sub-Genres", "target": "Boomer Shooter", "type": "Gameplay", "weight": 1303 },
+  { "source": "Sub-Genres", "target": "Typing", "type": "Gameplay", "weight": 1242 },
+  { "source": "Sub-Genres", "target": "Shop Keeper", "type": "Gameplay", "weight": 1134 },
+  { "source": "Sub-Genres", "target": "Escape Room", "type": "Gameplay", "weight": 846 },
+  { "source": "Sub-Genres", "target": "Traditional Roguelike", "type": "Gameplay", "weight": 784 },
+  { "source": "Sub-Genres", "target": "On-Rails Shooter", "type": "Gameplay", "weight": 640 },
+  { "source": "Sub-Genres", "target": "Spelling", "type": "Gameplay", "weight": 593 },
+  { "source": "Sub-Genres", "target": "Roguevania", "type": "Gameplay", "weight": 436 },
+  { "source": "Sub-Genres", "target": "Extraction Shooter", "type": "Gameplay", "weight": 329 },
+  { "source": "Sub-Genres", "target": "Mahjong", "type": "Gameplay", "weight": 164 },
+  { "source": "Actions & Activities", "target": "Exploration", "type": "Gameplay", "weight": 38803 },
+  { "source": "Actions & Activities", "target": "Stealth", "type": "Gameplay", "weight": 6078 },
+  { "source": "Actions & Activities", "target": "Investigation", "type": "Gameplay", "weight": 6040 },
+  { "source": "Actions & Activities", "target": "Flight", "type": "Gameplay", "weight": 3359 },
+  { "source": "Actions & Activities", "target": "Trading", "type": "Gameplay", "weight": 2110 },
+  { "source": "Challenge", "target": "PvE", "type": "Gameplay", "weight": 18362 },
+  { "source": "Challenge", "target": "PvP", "type": "Gameplay", "weight": 16830 },
+  { "source": "Challenge", "target": "Difficult", "type": "Gameplay", "weight": 10795 },
+  { "source": "Challenge", "target": "Tutorial", "type": "Gameplay", "weight": 4898 },
+  { "source": "Challenge", "target": "Perma Death", "type": "Gameplay", "weight": 4361 },
+  { "source": "Challenge", "target": "Competitive", "type": "Gameplay", "weight": 2339 },
+  { "source": "Challenge", "target": "Unforgiving", "type": "Gameplay", "weight": 347 },
+  { "source": "Challenge", "target": "Boss Rush", "type": "Gameplay", "weight": 287 },
+  { "source": "Time", "target": "Turn-Based Tactics", "type": "Gameplay", "weight": 9701 },
+  { "source": "Time", "target": "Turn-Based Combat", "type": "Gameplay", "weight": 9542 },
+  { "source": "Time", "target": "Turn-Based", "type": "Gameplay", "weight": 5867 },
+  { "source": "Time", "target": "Time Management", "type": "Gameplay", "weight": 5828 },
+  { "source": "Time", "target": "Replay Value", "type": "Gameplay", "weight": 5579 },
+  { "source": "Time", "target": "Real Time Tactics", "type": "Gameplay", "weight": 4807 },
+  { "source": "Time", "target": "Fast-Paced", "type": "Gameplay", "weight": 3350 },
+  { "source": "Time", "target": "Bullet Time", "type": "Gameplay", "weight": 1601 },
+  { "source": "Time", "target": "Time Manipulation", "type": "Gameplay", "weight": 1489 },
+  { "source": "Time", "target": "Real-Time", "type": "Gameplay", "weight": 677 },
+  { "source": "Time", "target": "Time Attack", "type": "Gameplay", "weight": 632 },
+  { "source": "Time", "target": "Real-Time with Pause", "type": "Gameplay", "weight": 577 },
+  { "source": "Role-Playing Genres", "target": "Action RPG", "type": "Gameplay", "weight": 12541 },
+  { "source": "Role-Playing Genres", "target": "Party-Based RPG", "type": "Gameplay", "weight": 7009 },
+  { "source": "Role-Playing Genres", "target": "Strategy RPG", "type": "Gameplay", "weight": 5311 },
+  { "source": "Role-Playing Genres", "target": "Tactical RPG", "type": "Gameplay", "weight": 4155 },
+  { "source": "Role-Playing Genres", "target": "CRPG", "type": "Gameplay", "weight": 3010 },
+  { "source": "Role-Playing Genres", "target": "Mystery Dungeon", "type": "Gameplay", "weight": 1924 },
+  { "source": "Role-Playing Genres", "target": "MMORPG", "type": "Gameplay", "weight": 1894 },
+  { "source": "Sports", "target": "Sports", "type": "Gameplay", "weight": 11546 },
+  { "source": "Sports", "target": "Racing", "type": "Gameplay", "weight": 9834 },
+  { "source": "Sports", "target": "Driving", "type": "Gameplay", "weight": 4802 },
+  { "source": "Sports", "target": "Parkour", "type": "Gameplay", "weight": 3245 },
+  { "source": "Sports", "target": "Fishing", "type": "Gameplay", "weight": 1532 },
+  { "source": "Sports", "target": "Sailing", "type": "Gameplay", "weight": 747 },
+  { "source": "Sports", "target": "Archery", "type": "Gameplay", "weight": 663 },
+  { "source": "Sports", "target": "Offroad", "type": "Gameplay", "weight": 579 },
+  { "source": "Sports", "target": "Farming", "type": "Gameplay", "weight": 535 },
+  { "source": "Sports", "target": "Skateboarding", "type": "Gameplay", "weight": 279 },
+  { "source": "Sports", "target": "Skating", "type": "Gameplay", "weight": 215 },
+  { "source": "Sports", "target": "Cycling", "type": "Gameplay", "weight": 200 },
+  { "source": "Sports", "target": "Motocross", "type": "Gameplay", "weight": 177 },
+  { "source": "Sports", "target": "BMX", "type": "Gameplay", "weight": 95 },
+  { "source": "Card & Board Genres", "target": "Tabletop", "type": "Gameplay", "weight": 8250 },
+  { "source": "Card & Board Genres", "target": "Card Game", "type": "Gameplay", "weight": 7616 },
+  { "source": "Card & Board Genres", "target": "Deckbuilding", "type": "Gameplay", "weight": 5797 },
+  { "source": "Card & Board Genres", "target": "Card Battler", "type": "Gameplay", "weight": 4428 },
+  { "source": "Card & Board Genres", "target": "Roguelike Deckbuilder", "type": "Gameplay", "weight": 1775 },
+  { "source": "Card & Board Genres", "target": "Trading Card Game", "type": "Gameplay", "weight": 1404 },
+  { "source": "Card & Board Genres", "target": "Chess", "type": "Gameplay", "weight": 502 },
+  { "source": "Card & Board Genres", "target": "Dice", "type": "Gameplay", "weight": 340 },
+  { "source": "Fighting", "target": "2D Fighter", "type": "Gameplay", "weight": 3027 },
+  { "source": "Fighting", "target": "3D Fighter", "type": "Gameplay", "weight": 2493 },
+  { "source": "Fighting", "target": "Fighting", "type": "Gameplay", "weight": 2160 },
+  { "source": "Fighting", "target": "Spectacle fighter", "type": "Gameplay", "weight": 1680 },
+  { "source": "Combat Sports", "target": "Martial Arts", "type": "Gameplay", "weight": 1627 },
+  { "source": "Combat Sports", "target": "Hunting", "type": "Gameplay", "weight": 1118 },
+  { "source": "Combat Sports", "target": "Boxing", "type": "Gameplay", "weight": 485 },
+  { "source": "Combat Sports", "target": "Wrestling", "type": "Gameplay", "weight": 268 },
+  { "source": "Ball Sports", "target": "Football (Soccer)", "type": "Gameplay", "weight": 673 },
+  { "source": "Ball Sports", "target": "Golf", "type": "Gameplay", "weight": 440 },
+  { "source": "Ball Sports", "target": "Basketball", "type": "Gameplay", "weight": 410 },
+  { "source": "Ball Sports", "target": "Baseball", "type": "Gameplay", "weight": 344 },
+  { "source": "Ball Sports", "target": "Mini Golf", "type": "Gameplay", "weight": 275 },
+  { "source": "Ball Sports", "target": "Football (American)", "type": "Gameplay", "weight": 232 },
+  { "source": "Ball Sports", "target": "Tennis", "type": "Gameplay", "weight": 203 },
+  { "source": "Ball Sports", "target": "Pool", "type": "Gameplay", "weight": 255 },
+  { "source": "Ball Sports", "target": "Bowling", "type": "Gameplay", "weight": 136 },
+  { "source": "Ball Sports", "target": "Volleyball", "type": "Gameplay", "weight": 41 },
+  { "source": "Ball Sports", "target": "Rugby", "type": "Gameplay", "weight": 34 },
+  { "source": "Ball Sports", "target": "Snooker", "type": "Gameplay", "weight": 29 },
+  { "source": "Winter Sports", "target": "Hockey", "type": "Gameplay", "weight": 148 },
+  { "source": "Winter Sports", "target": "Snowboarding", "type": "Gameplay", "weight": 116 },
+  { "source": "Winter Sports", "target": "Skiing", "type": "Gameplay", "weight": 114 },
+  { "source": "Level Design", "target": "Open World", "type": "Gameplay", "weight": 16105 },
+  { "source": "Level Design", "target": "Nonlinear", "type": "Gameplay", "weight": 4802 },
+  { "source": "Violence", "target": "Violent", "type": "Gameplay", "weight": 14943 },
+  { "source": "Violence", "target": "Gore", "type": "Gameplay", "weight": 12039 },
+  { "source": "Violence", "target": "Blood", "type": "Gameplay", "weight": 1054 },
+  { "source": "Military", "target": "War", "type": "Gameplay", "weight": 6563 },
+  { "source": "Military", "target": "Military", "type": "Gameplay", "weight": 5490 },
+  { "source": "Military", "target": "World War II", "type": "Gameplay", "weight": 1617 },
+  { "source": "Military", "target": "Tanks", "type": "Gameplay", "weight": 1223 },
+  { "source": "Military", "target": "Naval", "type": "Gameplay", "weight": 870 },
+  { "source": "Military", "target": "Naval Combat", "type": "Gameplay", "weight": 732 },
+  { "source": "Military", "target": "Cold War", "type": "Gameplay", "weight": 693 },
+  { "source": "Military", "target": "World War I", "type": "Gameplay", "weight": 389 },
+  { "source": "Players", "target": "Singleplayer", "type": "Player Experience", "weight": 129649 },
+  { "source": "Players", "target": "Multiplayer", "type": "Player Experience", "weight": 28154 },
+  { "source": "Players", "target": "Co-op", "type": "Player Experience", "weight": 14727 },
+  { "source": "Players", "target": "Online Co-Op", "type": "Player Experience", "weight": 12819 },
+  { "source": "Players", "target": "Massively Multiplayer", "type": "Player Experience", "weight": 8109 },
+  { "source": "Players", "target": "Local Multiplayer", "type": "Player Experience", "weight": 7290 },
+  { "source": "Players", "target": "Local Co-Op", "type": "Player Experience", "weight": 5403 },
+  { "source": "Players", "target": "Team-Based", "type": "Player Experience", "weight": 4343 },
+  { "source": "Players", "target": "4 Player Local", "type": "Player Experience", "weight": 3200 },
+  { "source": "Players", "target": "Co-op Campaign", "type": "Player Experience", "weight": 1393 },
+  { "source": "Players", "target": "Asynchronous Multiplayer", "type": "Player Experience", "weight": 1093 },
+  { "source": "Miscellaneous", "target": "Profile Features Limited", "type": "Player Experience", "weight": 149144 },
+  { "source": "Miscellaneous", "target": "Demo Available", "type": "Player Experience", "weight": 28691 },
+  { "source": "Miscellaneous", "target": "Free to Play", "type": "Player Experience", "weight": 27248 },
+  { "source": "Miscellaneous", "target": "Early Access", "type": "Player Experience", "weight": 21599 },
+  { "source": "Miscellaneous", "target": "AI Content Disclosed", "type": "Player Experience", "weight": 21143 },
+  { "source": "Miscellaneous", "target": "Experimental", "type": "Player Experience", "weight": 2029 },
+  { "source": "Miscellaneous", "target": "Software Training", "type": "Player Experience", "weight": 936 },
+  { "source": "Miscellaneous", "target": "Minigames", "type": "Player Experience", "weight": 916 },
+  { "source": "Miscellaneous", "target": "Remake", "type": "Player Experience", "weight": 612 },
+  { "source": "Miscellaneous", "target": "Sequel", "type": "Player Experience", "weight": 458 },
+  { "source": "Miscellaneous", "target": "Experience", "type": "Player Experience", "weight": 328 },
+  { "source": "Miscellaneous", "target": "Kickstarter", "type": "Player Experience", "weight": 292 },
+  { "source": "Miscellaneous", "target": "Crowdfunded", "type": "Player Experience", "weight": 155 },
+  { "source": "Miscellaneous", "target": "Benchmark", "type": "Player Experience", "weight": 65 },
+  { "source": "Miscellaneous", "target": "Feature Film", "type": "Player Experience", "weight": 41 },
+  { "source": "Miscellaneous", "target": "Reboot", "type": "Player Experience", "weight": 18 },
+  { "source": "Customization", "target": "Character Customization", "type": "Player Experience", "weight": 14749 },
+  { "source": "Customization", "target": "Level Editor", "type": "Player Experience", "weight": 3049 },
+  { "source": "Customization", "target": "Moddable", "type": "Player Experience", "weight": 2568 },
+  { "source": "Customization", "target": "Gun Customization", "type": "Player Experience", "weight": 2083 },
+  { "source": "Controls", "target": "Controller", "type": "Player Experience", "weight": 20763 },
+  { "source": "Controls", "target": "Grid-Based Movement", "type": "Player Experience", "weight": 3175 },
+  { "source": "Controls", "target": "Mouse Only", "type": "Player Experience", "weight": 967 },
+  { "source": "Controls", "target": "Touch-Friendly", "type": "Player Experience", "weight": 397 },
+  { "source": "Controls", "target": "Intentionally Awkward Controls", "type": "Player Experience", "weight": 156 },
+  { "source": "Controls", "target": "Voice Control", "type": "Player Experience", "weight": 119 },
+  { "source": "Software Genres", "target": "Education", "type": "Player Experience", "weight": 7540 },
+  { "source": "Software Genres", "target": "Design & Illustration", "type": "Player Experience", "weight": 5782 },
+  { "source": "Software Genres", "target": "Utilities", "type": "Player Experience", "weight": 5240 },
+  { "source": "Software Genres", "target": "Web Publishing", "type": "Player Experience", "weight": 3333 },
+  { "source": "Software Genres", "target": "Animation & Modeling", "type": "Player Experience", "weight": 1934 },
+  { "source": "Software Genres", "target": "Audio Production", "type": "Player Experience", "weight": 1307 },
+  { "source": "Software Genres", "target": "Video Production", "type": "Player Experience", "weight": 1229 },
+  { "source": "Software Genres", "target": "Photo Editing", "type": "Player Experience", "weight": 701 },
+  { "source": "Hardware", "target": "TrackIR", "type": "Player Experience", "weight": 211 },
+  { "source": "Hardware", "target": "Hardware", "type": "Player Experience", "weight": 80 },
+  { "source": "Hardware", "target": "Steam Machine", "type": "Player Experience", "weight": 28 },
+  { "source": "Character", "target": "Female Protagonist", "type": "Player Experience", "weight": 19597 },
+  { "source": "Character", "target": "Character Action Game", "type": "Player Experience", "weight": 996 },
+  { "source": "Character", "target": "Villain Protagonist", "type": "Player Experience", "weight": 420 },
+  { "source": "Character", "target": "Silent Protagonist", "type": "Player Experience", "weight": 200 },
+  { "source": "Mods", "target": "Mod", "type": "Player Experience", "weight": 269 },
+  { "source": "Tools", "target": "RPGMaker", "type": "Player Experience", "weight": 2407 },
+  { "source": "Tools", "target": "GameMaker", "type": "Player Experience", "weight": 327 },
+  { "source": "Uncategorized", "target": "Classic", "type": "Player Experience", "weight": 1573 },
+  { "source": "Uncategorized", "target": "Addictive", "type": "Player Experience", "weight": 467 },
+  { "source": "Uncategorized", "target": "Cult Classic", "type": "Player Experience", "weight": 333 },
+  { "source": "Uncategorized", "target": "Epic", "type": "Player Experience", "weight": 191 },
+  { "source": "Franchises", "target": "Dungeons & Dragons", "type": "Player Experience", "weight": 714 },
+  { "source": "Franchises", "target": "LEGO", "type": "Player Experience", "weight": 324 },
+  { "source": "Franchises", "target": "Warhammer 40K", "type": "Player Experience", "weight": 213 },
+  { "source": "Franchises", "target": "Games Workshop", "type": "Player Experience", "weight": 176 }
+];
+
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+const COLOR = {
+  "Gameplay":          "#3b82f6",
+  "Narrative":         "#f59e0b",
+  "Visuals":           "#10b981",
+  "Player Experience": "#a855f7"
+};
+const SIDEBAR_W = 272;
+const WIDTH  = window.innerWidth;
+const HEIGHT = window.innerHeight;
+
+// ─── BUILD NODES & LINKS ─────────────────────────────────────────────────────
+const nodeTypeMap     = new Map();
+const nodeTotalWeight = new Map();
+suits.forEach(d => {
+  if (!nodeTypeMap.has(d.source)) nodeTypeMap.set(d.source, d.type);
+  if (!nodeTypeMap.has(d.target)) nodeTypeMap.set(d.target, d.type);
+  nodeTotalWeight.set(d.source, (nodeTotalWeight.get(d.source)||0) + d.weight);
+  nodeTotalWeight.set(d.target, (nodeTotalWeight.get(d.target)||0) + d.weight);
+});
+const nodes = Array.from(nodeTypeMap.entries()).map(([id, type]) => ({
+  id, type, totalWeight: nodeTotalWeight.get(id) || 1
+}));
+const links = suits.map(d => ({ ...d }));
+
+// ─── NODE LEVEL CLASSIFICATION ───────────────────────────────────────────────
+const nodeLevel = new Map();
+const ROOT_IDS = new Set(["Gameplay","Narrative","Visuals","Player Experience"]);
+ROOT_IDS.forEach(r => nodeLevel.set(r, 'root'));
+
+suits.forEach(d => { if (ROOT_IDS.has(d.source) && !nodeLevel.has(d.target)) nodeLevel.set(d.target, 'category'); });
+suits.forEach(d => { if (d.source === 'Top-Level Genres' && !nodeLevel.has(d.target)) nodeLevel.set(d.target, 'top-level-genre'); });
+suits.forEach(d => { if (d.source === 'Genres' && !nodeLevel.has(d.target)) nodeLevel.set(d.target, 'genre'); });
+suits.forEach(d => { if (d.source === 'Sub-Genres' && !nodeLevel.has(d.target)) nodeLevel.set(d.target, 'sub-genre'); });
+nodes.forEach(n => { if (!nodeLevel.has(n.id)) nodeLevel.set(n.id, 'tag'); });
+nodes.forEach(n => { n.level = nodeLevel.get(n.id); });
+
+// Sets per filter level (always include root + category as context)
+const levelNodeSets = {
+  'all':             new Set(nodes.map(n => n.id)),
+  'top-level-genre': new Set(nodes.filter(n => ['root','category','top-level-genre'].includes(n.level)).map(n => n.id)),
+  'genre':           new Set(nodes.filter(n => ['root','category','genre'].includes(n.level)).map(n => n.id)),
+  'sub-genre':       new Set(nodes.filter(n => ['root','category','sub-genre'].includes(n.level)).map(n => n.id)),
+  'tags':            new Set(nodes.filter(n => ['root','category','tag'].includes(n.level)).map(n => n.id))
+};
+
+// Fill filter counts into dropdown option labels
+const filterSelect = document.getElementById('filter-select');
+const levelLabels = {
+  'all':             'All nodes',
+  'top-level-genre': 'Top-Level Genre',
+  'genre':           'Genre',
+  'sub-genre':       'Sub-Genre',
+  'tags':            'Tags'
+};
+Array.from(filterSelect.options).forEach(opt => {
+  const count = levelNodeSets[opt.value] ? levelNodeSets[opt.value].size : '';
+  opt.textContent = `${levelLabels[opt.value]} (${count})`;
+});
+
+// ─── SCALES ───────────────────────────────────────────────────────────────────
+const maxW  = d3.max(suits, d => d.weight);
+const maxNW = d3.max(nodes, d => d.totalWeight);
+const rScale = d3.scaleSqrt().domain([0, maxNW]).range([4, 48]).clamp(true);
+const wScale = d3.scaleLog().domain([1, maxW]).range([0.4, 6]).clamp(true);
+const fmt    = d3.format(",");
+
+// ─── SVG ──────────────────────────────────────────────────────────────────────
+const svg = d3.select("#graph").attr("viewBox", [0, 0, WIDTH, HEIGHT]);
+const g   = svg.append("g");
+
+const zoom = d3.zoom().scaleExtent([0.08, 5])
+  .on("zoom", e => g.attr("transform", e.transform));
+svg.call(zoom);
+
+document.getElementById("reset-btn").addEventListener("click", () => {
+  svg.transition().duration(600).call(zoom.transform,
+    d3.zoomIdentity.translate(WIDTH/2 + SIDEBAR_W/2, HEIGHT/2).scale(0.75).translate(-WIDTH/2, -HEIGHT/2));
+});
+
+// Arrow markers
+const defs = svg.append("defs");
+Object.entries(COLOR).forEach(([type, color]) => {
+  const safe = type.replace(/\s+/g, "-");
+  defs.append("marker").attr("id", `arrow-${safe}`)
+    .attr("viewBox","0 -4 8 8").attr("refX",8).attr("refY",0)
+    .attr("markerWidth",5).attr("markerHeight",5).attr("orient","auto")
+    .append("path").attr("d","M0,-4L8,0L0,4").attr("fill",color).attr("fill-opacity",0.75);
+});
+
+// ─── LINKS ────────────────────────────────────────────────────────────────────
+const linkSel = g.append("g").attr("class","links")
+  .selectAll("line").data(links).join("line")
+  .attr("class","link")
+  .attr("stroke", d => COLOR[d.type]||"#888")
+  .attr("stroke-width", d => wScale(d.weight))
+  .attr("marker-end", d => `url(#arrow-${d.type.replace(/\s+/g,"-")})`);
+
+// ─── NODES ────────────────────────────────────────────────────────────────────
+const nodeSel = g.append("g").attr("class","nodes")
+  .selectAll("g").data(nodes).join("g").attr("class","node")
+  .call(d3.drag()
+    .on("start", (ev,d) => { if (!ev.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+    .on("drag",  (ev,d) => { d.fx=ev.x; d.fy=ev.y; })
+    .on("end",   (ev,d) => { if (!ev.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
+  );
+
+nodeSel.append("circle")
+  .attr("r", d => rScale(d.totalWeight))
+  .attr("fill", d => COLOR[d.type]||"#888")
+  .attr("stroke", d => ROOT_IDS.has(d.id) ? "#24292f" : "#ffffff")
+  .attr("stroke-width", d => ROOT_IDS.has(d.id) ? 2.5 : 1)
+  .attr("opacity", d => ROOT_IDS.has(d.id) ? 1 : 0.88);
+
+nodeSel.append("text")
+  .attr("class", d => ROOT_IDS.has(d.id) ? "node-label big" : "node-label")
+  .attr("dy", d => rScale(d.totalWeight) + (ROOT_IDS.has(d.id) ? 14 : 10))
+  .text(d => d.id);
+
+// ─── TOOLTIP ─────────────────────────────────────────────────────────────────
+const tooltip = d3.select("#tooltip");
+nodeSel
+  .on("mouseenter", function(ev, d) {
+    const inc = links.filter(l => (l.target.id??l.target)===d.id).length;
+    const out = links.filter(l => (l.source.id??l.source)===d.id).length;
+    tooltip.style("opacity",1).html(
+      `<strong style="color:${COLOR[d.type]}">${d.id}</strong><br>
+       Category: ${d.type}<br>Level: ${d.level}<br>
+       Total weight: ${fmt(d.totalWeight)}<br>In: ${inc} &nbsp;·&nbsp; Out: ${out}`);
+  })
+  .on("mousemove", ev => tooltip.style("left",(ev.clientX+14)+"px").style("top",(ev.clientY-32)+"px"))
+  .on("mouseleave", () => tooltip.style("opacity",0));
+
+// ─── HIGHLIGHT HELPERS ────────────────────────────────────────────────────────
+let selectedId = null;
+
+function highlightNode(id) {
+  selectedId = id;
+  const connIds = new Set([id]);
+  linkSel.each(l => {
+    const s = l.source.id??l.source, t = l.target.id??l.target;
+    if (s===id||t===id) { connIds.add(s); connIds.add(t); }
+  });
+  linkSel
+    .classed("dimmed",      l => !((l.source.id??l.source)===id||(l.target.id??l.target)===id))
+    .classed("highlighted", l =>  ((l.source.id??l.source)===id||(l.target.id??l.target)===id));
+  nodeSel.classed("dimmed", n => !connIds.has(n.id));
+}
+
+function clearHighlight() {
+  selectedId = null;
+  linkSel.classed("dimmed",false).classed("highlighted",false);
+  nodeSel.classed("dimmed",false);
+}
+
+function zoomToNode(id) {
+  const nd = nodes.find(n => n.id===id);
+  if (!nd||nd.x==null) return;
+  svg.transition().duration(750).call(zoom.transform,
+    d3.zoomIdentity.translate(WIDTH/2, HEIGHT/2).scale(2.2).translate(-nd.x, -nd.y));
+  highlightNode(id);
+}
+
+// ─── NODE CLICK ───────────────────────────────────────────────────────────────
+nodeSel.on("click", function(ev, d) {
+  ev.stopPropagation();
+  if (selectedId===d.id) { clearHighlight(); return; }
+  highlightNode(d.id);
+});
+svg.on("click", clearHighlight);
+
+// ─── DISPLAY FILTER STATE ─────────────────────────────────────────────────────
+const activeTypes = new Set(Object.keys(COLOR));
+let   activeLevel = 'all';
+
+function updateDisplay() {
+  const allowed = activeLevel === 'all' ? null : levelNodeSets[activeLevel];
+  nodeSel.attr("display", d => {
+    if (!activeTypes.has(d.type)) return "none";
+    if (allowed && !allowed.has(d.id)) return "none";
+    return null;
+  });
+  linkSel.attr("display", d => {
+    const s = d.source.id??d.source, t = d.target.id??d.target;
+    if (!activeTypes.has(d.type)) return "none";
+    if (allowed && (!allowed.has(s)||!allowed.has(t))) return "none";
+    return null;
+  });
+}
+
+// ─── LEGEND (type filter) ─────────────────────────────────────────────────────
+const typeCounts = {};
+nodes.forEach(n => { typeCounts[n.type] = (typeCounts[n.type]||0)+1; });
+const legendEl = d3.select("#legend");
+Object.entries(COLOR).forEach(([type, color]) => {
+  const item = legendEl.append("div").attr("class","legend-item");
+  item.append("div").attr("class","legend-dot").style("background",color);
+  item.append("span").text(type);
+  item.append("span").attr("class","legend-count").text(typeCounts[type]||0);
+  item.on("click", function() {
+    if (activeTypes.has(type)) {
+      if (activeTypes.size===1) return;
+      activeTypes.delete(type); d3.select(this).classed("inactive",true);
+    } else {
+      activeTypes.add(type); d3.select(this).classed("inactive",false);
+    }
+    updateDisplay();
+  });
+});
+
+// ─── SIDEBAR FILTER DROPDOWN ─────────────────────────────────────────────────
+filterSelect.addEventListener('change', function() {
+  activeLevel = this.value;
+  updateDisplay();
+  clearHighlight();
+});
+
+// ─── THEME TOGGLE ─────────────────────────────────────────────────────────────
+const themeToggle = document.getElementById('theme-toggle');
+themeToggle.addEventListener('click', () => {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  if (isDark) {
+    document.documentElement.removeAttribute('data-theme');
+    themeToggle.textContent = '🌙';
+    themeToggle.setAttribute('aria-label', 'Switch to dark mode');
+    nodeSel.select('circle')
+      .attr('stroke', d => ROOT_IDS.has(d.id) ? '#24292f' : '#ffffff');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    themeToggle.textContent = '☀️';
+    themeToggle.setAttribute('aria-label', 'Switch to light mode');
+    nodeSel.select('circle')
+      .attr('stroke', d => ROOT_IDS.has(d.id) ? '#f0f6fc' : '#1f2937');
+  }
+});
+
+// ─── TOP 10 LIST ──────────────────────────────────────────────────────────────
+const top10 = [...nodes].sort((a,b) => b.totalWeight - a.totalWeight).slice(0,10);
+const top10El = document.getElementById('top10-list');
+top10.forEach((nd, i) => {
+  const item = document.createElement('div');
+  item.className = 't10-item';
+  item.innerHTML = `
+    <span class="t10-rank">${i+1}</span>
+    <span class="t10-dot" style="background:${COLOR[nd.type]||'#888'}"></span>
+    <span class="t10-name" title="${nd.id}">${nd.id}</span>
+    <span class="t10-wt">${fmt(nd.totalWeight)}</span>`;
+  item.addEventListener('click', () => zoomToNode(nd.id));
+  top10El.appendChild(item);
+});
+
+// ─── SEARCH ───────────────────────────────────────────────────────────────────
+const searchInput   = document.getElementById('search-input');
+const searchClear   = document.getElementById('search-clear');
+const searchResults = document.getElementById('search-results');
+const searchEmpty   = document.getElementById('search-empty');
+const allNodeIds    = nodes.map(n => n.id).sort();
+
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim().toLowerCase();
+  searchClear.style.display = q ? 'block' : 'none';
+  searchResults.querySelectorAll('.sr-item').forEach(el => el.remove());
+  searchEmpty.style.display = 'none';
+  if (!q) return;
+
+  const matches = allNodeIds.filter(id => id.toLowerCase().includes(q)).slice(0, 8);
+  if (!matches.length) { searchEmpty.style.display = 'block'; return; }
+
+  matches.forEach(id => {
+    const nd = nodes.find(n => n.id===id);
+    const item = document.createElement('div');
+    item.className = 'sr-item';
+    item.innerHTML = `
+      <span class="sr-dot" style="background:${COLOR[nd.type]||'#888'}"></span>
+      <span>${id}</span>
+      <span class="sr-wt">${fmt(nd.totalWeight)}</span>`;
+    item.addEventListener('click', () => {
+      zoomToNode(id);
+      searchInput.value = id;
+      searchResults.querySelectorAll('.sr-item').forEach(el => el.remove());
+      searchEmpty.style.display = 'none';
+    });
+    searchResults.appendChild(item);
+  });
+});
+
+searchClear.addEventListener('click', () => {
+  searchInput.value = '';
+  searchClear.style.display = 'none';
+  searchResults.querySelectorAll('.sr-item').forEach(el => el.remove());
+  searchEmpty.style.display = 'none';
+  clearHighlight();
+  searchInput.focus();
+});
+
+// ─── FORCE SIMULATION ────────────────────────────────────────────────────────
+const sim = d3.forceSimulation(nodes)
+  .force("link",      d3.forceLink(links).id(d=>d.id).distance(d=>60+wScale(d.weight)*4).strength(0.4))
+  .force("charge",    d3.forceManyBody().strength(d=>-80-rScale(d.totalWeight)*8))
+  .force("center",    d3.forceCenter(WIDTH/2 + SIDEBAR_W/2, HEIGHT/2).strength(0.05))
+  .force("collision", d3.forceCollide().radius(d=>rScale(d.totalWeight)+8))
+  .alphaDecay(0.025)
+  .on("tick", ticked);
+
+function ticked() {
+  linkSel
+    .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+    .attr("x2", d => {
+      const dx=d.target.x-d.source.x, dy=d.target.y-d.source.y, dist=Math.hypot(dx,dy)||1;
+      return d.target.x-(dx/dist)*(rScale(d.target.totalWeight)+7);
+    })
+    .attr("y2", d => {
+      const dx=d.target.x-d.source.x, dy=d.target.y-d.source.y, dist=Math.hypot(dx,dy)||1;
+      return d.target.y-(dy/dist)*(rScale(d.target.totalWeight)+7);
+    });
+  nodeSel.attr("transform", d => `translate(${d.x},${d.y})`);
+}
+
+setTimeout(() => {
+  svg.call(zoom.transform,
+    d3.zoomIdentity.translate(WIDTH*0.1 + SIDEBAR_W*0.5, HEIGHT*0.1).scale(0.8));
+}, 100);
+
+window.addEventListener("resize", () => {
+  const w=window.innerWidth, h=window.innerHeight;
+  svg.attr("viewBox",[0,0,w,h]);
+  sim.force("center", d3.forceCenter(w/2+SIDEBAR_W/2, h/2)).alpha(0.2).restart();
+});
+</script>
+</body>
+</html>
