@@ -69,7 +69,6 @@ Neither system is wrong. They answer different questions. Steam describes how a 
 ├── data_management_plan.pdf         ← DMP + plan vs. actual addendum
 ├── research_poster.pdf              ← Visual summary of the full pipeline
 ├── DATA_CREDITS.md                  ← Full attribution for all data sources
-├── DMP_Addendum_PlanVsActual.md     ← Plan vs. actual (markdown version)
 ├── Genre_ERD_ASCII.md               ← Entity-relationship diagram + schema SQL
 └── GENRE_TAXONOMY_DATA_FLOW.md      ← Classification decisions and methodology
 
